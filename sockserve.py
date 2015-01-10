@@ -1,5 +1,6 @@
 import SocketServer
 import time
+import os
 class MyTCPHandler(SocketServer.StreamRequestHandler ):
     """
     The RequestHandler class for our server.
@@ -15,15 +16,18 @@ class MyTCPHandler(SocketServer.StreamRequestHandler ):
         #open('reqstr','w').write(self.data)
         print "{} wrote:".format(self.client_address[0])
         print self.data
-        file = open("dump")
-        
+        header = open("header.txt")
+        self.wfile.write(header.read(1024))
+        frame = open("frame.txt")
+        fs = os.path.getsize('frame.txt')
         data_not_empty = True
-        txt = ' '
-        while txt != '': 
-            txt = file.read(1024)
-            print txt
+        while 1:
+
+            txt = frame.read(fs)
+            
             self.wfile.write(txt)
-            time.sleep(.01)
+            frame.seek(0)
+            time.sleep(.03)
         # just send back the same data, but upper-cased
         #self.request.sendall(self.data.upper())
 
