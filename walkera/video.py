@@ -5,7 +5,7 @@ import numpy as np
 import threading
 class Video:
     def __init__(self):
-
+        self.onkeypress = False
         self.password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
 
         self.top_level_url = "http://192.168.10.1:8080"
@@ -88,8 +88,14 @@ class Video:
 #                i = cv2.imdecode(np.fromstring(frame+'\xff\xd9', dtype=np.uint8),cv2.CV_LOAD_IMAGE_COLOR)
                 i = cv2.imdecode(np.fromstring(frame+'\xff\xd9', dtype=np.uint8),cv2.IMREAD_COLOR)
                 cv2.imshow('i',i)
+                
+
+                if (self.onkeypress):
+                    key = cv2.waitKey(1)
+                    self.onkeypress(key)
                 if cv2.waitKey(1) ==27:
                     exit(0)
+                
             except Exception, e:
                 print e   
             #if b==-1:
@@ -103,7 +109,9 @@ class Video:
             #    x = 0
             #    print frame
  
-
+    def setKeypress(self, func):
+        self.onkeypress = func
+        
     def startThread(self):
         self.myThread = threading.Thread(target=self.loop)
-        self.myThread.start()
+        self.myThreasd.start()
