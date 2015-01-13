@@ -1,25 +1,38 @@
 import cv2
 import numpy as np
-import urllib
+import urllib, base64
+import httplib
 
-stream=urllib.urlopen('http://192.168.10.1:8080/?action=stream')
+# opens the video stream and tracks 
+# user:admin, pass:admin123
+username = 'admin'
+password = 'admin123'
+
+cap = cv2.VideoCapture("admin:admin123@192.168.10.1:8080/?action=stream")
+print cap
+print cap.open("admin:admin123@192.168.10.1:8080/?action=stream")
+# print cap.grab()
+print cap.read()
+# connect2 = httplib.HTTPConnection('http://192.168.10.1:8080/?action=stream')
+
+
 bytes=''
+
 # face detection classifiers
 frontalclassifier = cv2.CascadeClassifier("haarcascade_frontalface_alt2.xml")     # frontal face pattern detection
 profileclassifier = cv2.CascadeClassifier("haarcascade_profileface.xml")      # side face pattern detection
 DOWNSCALE = 4
 
-
 while True:
-    bytes+=stream.read(1080)
-    # b = bytes.find('--markmarkmark')
+    bytes+=stream.read(180)
     a = bytes.find('\xff\xd8')
     b = bytes.find('\xff\xd9')
     if a!=-1 and b!=-1:
         jpg = bytes[a:b+2]
         bytes= bytes[b+2:]
-        frame = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8),cv2.CV_LOAD_IMAGE_GRAYSCALE)
-        if frame!= None:
+        # if frame!= None:
+        if len(jpg) > 1 and ord(jpg[-2]) == 0xff and ord(jpg[-1]) == 0xd9:
+            frame = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8),cv2.CV_LOAD_IMAGE_COLOR)
             # detect faces and draw bounding boxes
             minisize = (frame.shape[1]/DOWNSCALE,frame.shape[0]/DOWNSCALE)
             miniframe = cv2.resize(frame, minisize)
