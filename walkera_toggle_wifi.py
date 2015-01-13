@@ -4,6 +4,10 @@ import cv2
 import binascii
 import struct
 
+# toggles the wifi control of the qr w100s
+# 'w' turns the wifi control on
+# 's' turns the wifi control off
+
 turnedon = False
 # sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock = socket.socket()
@@ -21,19 +25,19 @@ off = [ 0x60, 0x00, throttle, 0x00, rotation, 0x00, elev, 0x00, aile,
 off.append( (sum(off)) & 0xff )
 off=struct.pack("18B",*tuple(off))
 
-on = [ 0x60, 0x00, throttle, 0x00, rotation, 0x00, elev, 0x00, aile,
+on = [ 0x61, 0x00, throttle, 0x00, rotation, 0x00, elev, 0x00, aile,
         0x00, aile, 0x00, throttle, 0x00, rotation, 0x00, elev]
 on.append( (sum(on)) & 0xff )
 on=struct.pack("18B",*tuple(on))
 
-data = on
-sock.send(on)
 while(turnedon):
-
-    key = cv2.waitKey(30)
-    if key == 119:
-        sock.send(off)
-    if key ==27:
-        exit(0)
+	sock.send(on)
+	# key = cv2.waitKey(30)
+    # if key == ord('w'):
+    #     sock.send(on)
+    # if key == 115:
+    #     sock.send(off)
+    # if key ==27:
+    #     exit(0)
 
 sock.close()

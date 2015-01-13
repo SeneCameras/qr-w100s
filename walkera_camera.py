@@ -2,24 +2,46 @@ import cv2
 import numpy as np
 import urllib
 import socket
+import httplib
+import urllib2
+import base64
+# import re
 
-stream=urllib.urlopen('http://192.168.10.1:8080/?action=stream')
+# opens the video stream of the qr w100s after given the user and pass
+username = "admin"
+password = "admin123"
+# stream=urllib.urlopen('http://192.168.10.1:8080/?action=stream')
 bytes=''
 MJPEGBuffer=''
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.settimeout(5)
-sock.connect( ( '192.168.10.1', 8080 ) )
-sock.send( "GET /index.htm HTTP/1.1\r\nUser-Agent: Walkera Remote\r\n\r\n")
+# sock = socket.socket()
 
-# print stream.read(12536)
+request = urllib2.Request("http://192.168.10.1:8080/?action=stream")
+print request
+base64string = base64.encodestring('%s:%s' % (username, password)).replace('\n', '')
+request.add_header("Authorization", "Basic %s" % base64string)   
+result = urllib2.urlopen(request)
+print result
+
+# HTTPConnection = httplib.HTTPConnection('http://192.168.10.1:8080/?action=stream')
+conn = httplib.HTTPConnection('192.168.10.1',8080)
+# print HTTPConnection.getresponse()
+conn.request("GET", "/index.html")
+r1 = conn.getresponse()
+print r1.status, r1.reason
+conn.connect()
+conn.request()
+# sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+# sock.settimeout(5)
+# sock.connect( ( '192.168.10.1', 8080 ) )
+
+
+
 while True:
-    data=stream.read(1552)
-    # data = sock.recv(1552)
-    # print data
-    # b = bytes.find('--markmarkmark')
-    # print bytes
+    # data=stream.read(1552)
+    data = sock.recv(1552)
+    print data
 
-    if str(data).startswith('\r\n--donotcross'):
+    if str(data).startswith('\r\n--markmarkmark'):
         MJPEGBuffer = ''
         if len(data) > 0x2c:
             MJPEGBuffer += str(bytearray(data[0x2c:]))
