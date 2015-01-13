@@ -1,7 +1,7 @@
 import urllib2
 import time
 
-def readframes(resp, recv_buffer=4096, delim='/n'):
+def readframes(resp, recv_buffer=4096, delim='\n'):
     buffer = ''
     data = True
     state = 0
@@ -50,7 +50,7 @@ if __name__ == "__main__":
 
     handler = urllib2.HTTPBasicAuthHandler(password_mgr)
     opener = urllib2.build_opener(handler)
-
+    opener.open("http://192.168.10.1:8080/?action=stream")
     urllib2.install_opener(opener)
     print 'opening url'
     resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
