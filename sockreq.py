@@ -1,5 +1,7 @@
 import urllib2
 import time
+import cv2
+import numpy as np
 
 def readframes(resp, recv_buffer=4096, delim='\n'):
     buffer = ''
@@ -17,20 +19,20 @@ def readframes(resp, recv_buffer=4096, delim='\n'):
                 if line[0:20] == "--boundarydonotcross":
                     state = 1
             elif state==1:
-                print line.split(":")
+                #print line.split(":")
                 state = 2
             elif state==2:
-                print line
+                #print line
                 datalength = int(line.split(":")[1][1:-1])
                 state = 3
-                print "datalen", datalength
+                #print "datalen", datalength
                 #print buffer
             elif state==3:
                 state = 4
                 
                 timestamp = float(line.split(":")[1][1:-1])
-                print "timestamp:", timestamp
-                print "lag", timestamp - ts, 1/( timestamp - ts)
+                #print "timestamp:", timestamp
+                #print "lag", timestamp - ts, 1/( timestamp - ts)
                 ts = timestamp
             else:
                 while(len(buffer) < datalength):
@@ -60,16 +62,39 @@ if __name__ == "__main__":
     n = 1
     avg = 0
     x = 0
+
     for frame in readframes(resp):
+      
+        #dump = open('dump/dumpframe'+str(x),'w')
+        x = x+1
+        #dump.write(frame)
         t = time.time()
         fps = 1/(t-a)
-        print "frame len: ", len(frame)
-        print (fps, avg)
+        #print "frame len: ", len(frame)
+        print "FPS: ", fps
         a = t
-        x = x+1
-        if (x==120):
-            
-            x = 0
-            print frame
+
+        #a = frame.find('\xff\xd8')
+        #b = frame[-20:].find('\xff\xd9')
+        #if b != -1:
+        #    frame = frame[0:-20+b]
+        #print a, b
+        try:
+            i = cv2.imdecode(np.fromstring(frame+'\xff\xd9', dtype=np.uint8),cv2.CV_LOAD_IMAGE_COLOR)
+            cv2.imshow('i',i)
+            if cv2.waitKey(1) ==27:
+                exit(0)
+        except Exception, e:
+            print e   
+        #if b==-1:
+        #    print "HAS -1 b", x
+        #if a!=-1 and b!=-1:
+        #    jpg = frame[a:b+2]
+        #    bytes= frame[b+2:]
+        
+        #x = x+1
+        #if (x==120):           
+        #    x = 0
+        #    print frame
  
 
