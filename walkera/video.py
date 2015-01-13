@@ -121,12 +121,10 @@ class Video:
                 
                 cv2.imshow('i',i)
                 
-
-                if (self.onkeypress):
-                    key = cv2.waitKey(1)
-                    if (key != -1):
-                        self.onkeypress(key)
-                if cv2.waitKey(1) ==27:
+                key = cv2.waitKey(1)
+                if (key != -1 and self.onkeypress):
+                    self.onkeypress(key)
+                if key==27:
                     self.reading = False
                     del self.myThread
                     exit(0)
