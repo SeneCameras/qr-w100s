@@ -7,7 +7,10 @@ class Video:
     def __init__(self):
         self.onkeypress = False
         self.password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-
+        self.detectFaces = False
+        self.DOWNSCALE = 4
+        self.frontalclassifier = False
+        
         self.top_level_url = "http://192.168.10.1:8080"
         self.password_mgr.add_password(None, self.top_level_url, 'admin', 'admin123')
 
@@ -17,14 +20,17 @@ class Video:
         urllib2.install_opener(self.opener)
         print 'opening url'
         
-        
+    def setClassifier(self, classifierxml):
+        self.frontalclassifier = cv2.CascadeClassifier(classifierxml)
+    
     def readframes(self, recv_buffer=4096, delim='\n'):
         buffer = ''
         data = True
+        self.reading = True
         self.state = 0
         ts = 0
         print ' in readframes'
-        while data:
+        while data and self.reading:
             data = self.resp.read(recv_buffer)
             buffer += data
 
@@ -71,13 +77,13 @@ class Video:
         for frame in self.readframes():
           
             #dump = open('dump/dumpframe'+str(x),'w')
-            x = x+1
+            #x = x+1
             #dump.write(frame)
-            t = time.time()
-            fps = 1/(t-a)
+            #t = time.time()
+            #fps = 1/(t-a)
             #print "frame len: ", len(frame)
             #print "FPS: ", fps
-            a = t
+            #a = t
 
             #a = frame.find('\xff\xd8')
             #b = frame[-20:].find('\xff\xd9')
@@ -86,18 +92,47 @@ class Video:
             #print a, b
             try:
 #                i = cv2.imdecode(np.fromstring(frame+'\xff\xd9', dtype=np.uint8),cv2.CV_LOAD_IMAGE_COLOR)
-                i = cv2.imdecode(np.fromstring(frame+'\xff\xd9', dtype=np.uint8),cv2.IMREAD_COLOR)
+                i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),cv2.IMREAD_COLOR)
+                
+                if (self.detectFaces and self.frontalclassifier):
+                # detect faces
+                    minisize = (i.shape[1]/self.DOWNSCALE,i.shape[0]/self.DOWNSCALE)
+                    miniframe = cv2.resize(i, minisize)
+                    frontalfaces = self.frontalclassifier.detectMultiScale(miniframe)
+                    for f in frontalfaces:
+                        x, y, w, h = [ v*self.DOWNSCALE for v in f ]
+                    #     # draws bounding box
+                        cv2.rectangle(i, (x,y), (x+w,y+h), (0,0,255))
+                    if len(frontalfaces) >= 1:
+                        x, y, w, h = [ v*self.DOWNSCALE for v in frontalfaces[0] ]
+                        if i.shape[1]*(2/3.) < x+w/2:# too far right
+                            cv2.rectangle(i, (x,y), (x+w,y+h), (0,0,255))
+                    #         # print "turn counterclockwise"
+                        elif i.shape[1]*(1/3.) > x+w/2: # too far left
+                    #         # print "turn clockwise"
+                            cv2.rectangle(i, (x,y), (x+w,y+h), (0,255,0))
+                        else: # centered
+                    #         # print "centered"
+                            cv2.rectangle(i, (x,y), (x+w,y+h), (255,0,0))
+                    #     print (x+w/2.),(y+h/2.),(w**2+h**2)**0.5
+
+                
+                
+                
                 cv2.imshow('i',i)
                 
 
                 if (self.onkeypress):
                     key = cv2.waitKey(1)
-                    self.onkeypress(key)
+                    if (key != -1):
+                        self.onkeypress(key)
                 if cv2.waitKey(1) ==27:
+                    self.reading = False
+                    del self.myThread
                     exit(0)
                 
             except Exception, e:
-                print e   
+                print "EXCEPTION:", e   
             #if b==-1:
             #    print "HAS -1 b", x
             #if a!=-1 and b!=-1:
