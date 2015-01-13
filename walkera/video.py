@@ -114,4 +114,4 @@ class Video:
         
     def startThread(self):
         self.myThread = threading.Thread(target=self.loop)
-        self.myThreasd.start()
+        self.myThread.start()
