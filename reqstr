@@ -1,4 +1,4 @@
-GET /?action=stream HTTP/1.1
+GET /?action=snapshot HTTP/1.1
 Host: 192.168.10.1.:8080
 Connection: Keep-Alive
 Authorization: Basic YWRtaW46YWRtaW4xMjM=

@@ -1,21 +1,16 @@
-import socket
+import urllib2
 import time
-import re 
 
-reqstr = open('reqstr').read()
-def readframes(sock, recv_buffer=4096, delim='\n'):
+def readframes(resp, recv_buffer=4096, delim='/n'):
     buffer = ''
     data = True
     state = 0
     ts = 0
+    print ' in readframes'
     while data:
-        try:
+        data = resp.read(recv_buffer)
+        buffer += data
 
-
-            data = sock.recv(recv_buffer)
-            buffer += data
-        except socket.error, e:
-            print e
         while buffer.find(delim) != -1:
             line, buffer = buffer.split("\n", 1)
             if state==0:
@@ -40,25 +35,32 @@ def readframes(sock, recv_buffer=4096, delim='\n'):
             else:
                 while(len(buffer) < datalength):
                     bytes_remaining = datalength - len(buffer)
-                    data = sock.recv(bytes_remaining)
+                    data = resp.read(bytes_remaining)
                     buffer += data
                 state = 0
                 yield buffer
     return
 
 if __name__ == "__main__":
-    HOST, PORT = "192.168.10.1", 8080
-    # f = open('dump','w')
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((HOST, PORT))
-    sock.setblocking(False)
-    sock.send(reqstr)
+
+    password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+
+    top_level_url = "http://192.168.10.1:8080"
+    password_mgr.add_password(None, top_level_url, 'admin', 'admin123')
+
+    handler = urllib2.HTTPBasicAuthHandler(password_mgr)
+    opener = urllib2.build_opener(handler)
+
+    urllib2.install_opener(opener)
+    print 'opening url'
+    resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
+    #print resp.read(10)
     size = 0
     a = time.time()
     n = 1
     avg = 0
     x = 0
-    for frame in readframes(sock):
+    for frame in readframes(resp):
         t = time.time()
         fps = 1/(t-a)
         print "frame len: ", len(frame)
@@ -69,17 +71,5 @@ if __name__ == "__main__":
             
             x = 0
             print frame
-    # recvd = ''
-    
-    
-    # while 1:
-        # data = sock.recv(18880)
-        # size+=len(data)
-        # print size
-        # if not data: 
-            # break
-        # f.write(data)
-        
-        
- # 
  
+
