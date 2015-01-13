@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-import urllib
+import urllib2
 import socket
 import sys
 import struct
@@ -17,7 +17,18 @@ class Walkera:
         self.elev = 0x044a
         self.aile =  0x044a
 
-        self.stream=urllib.urlopen('http://admin:admin123@192.168.10.1:8080/?action=stream')
+        self.bytes = ''
+        password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+
+        top_level_url = "http://192.168.10.1:8080"
+        password_mgr.add_password(None, top_level_url, 'admin', 'admin123')
+
+        handler = urllib2.HTTPBasicAuthHandler(password_mgr)
+        opener = urllib2.build_opener(handler)
+        opener.open("http://192.168.10.1:8080/?action=stream")
+        urllib2.install_opener(opener)
+        print 'opening url'
+        self.stream = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
     
         self.data = bytearray(18)
 
@@ -47,15 +58,17 @@ class Walkera:
         
     def loop(self):
         self.threadOn = True
+        DOWNSCALE = 4
+        frontalclassifier = cv2.CascadeClassifier("haarcascade_frontalface_alt2.xml")
         while self.threadOn:
             self.update()
             self.sock.send(self.data) 
-            bytes+=self.stream.read(1080)
-            a = bytes.find('\xff\xd8')
-            b = bytes.find('\xff\xd9')
+            self.bytes+=self.stream.read(1080)
+            a = self.bytes.find('\xff\xd8')
+            b = self.bytes.find('\xff\xd9')
             if a!=-1 and b!=-1:
-                jpg = bytes[a:b+2]
-                bytes= bytes[b+2:]
+                jpg = self.bytes[a:b+2]
+                self.bytes= self.bytes[b+2:]
                 frame = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8),cv2.CV_LOAD_IMAGE_GRAYSCALE)
                 if frame!= None:
                     # detect faces

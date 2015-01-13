@@ -1,10 +1,20 @@
 import cv2
 import numpy as np
-import urllib, base64
+import urllib2
 
 # opens the video stream and tracks 
 
-stream=urllib.urlopen('http://admin:admin123@192.168.10.1:8080/?action=stream')
+password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+
+top_level_url = "http://192.168.10.1:8080"
+password_mgr.add_password(None, top_level_url, 'admin', 'admin123')
+
+handler = urllib2.HTTPBasicAuthHandler(password_mgr)
+opener = urllib2.build_opener(handler)
+opener.open("http://192.168.10.1:8080/?action=stream")
+urllib2.install_opener(opener)
+print 'opening url'
+stream = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
 bytes=''
 # face detection classifiers
 frontalclassifier = cv2.CascadeClassifier("haarcascade_frontalface_alt2.xml")     # frontal face pattern detection
@@ -16,9 +26,6 @@ while 1:
     b = bytes.find('\xff\xd9')
     if a!=-1 and b!=-1:
         jpg = bytes[a:b+2]
-        bytes[a-1] = "Q"
-        bytes[b+2] = "Q"
-        print bytes
         bytes= bytes[b+2:]
         frame = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8),cv2.CV_LOAD_IMAGE_COLOR)
         if frame!= None:
@@ -43,6 +50,6 @@ while 1:
                     cv2.rectangle(frame, (x,y), (x+w,y+h), (255,0,0))
             cv2.imshow('authenticated cam',frame)
             if cv2.waitKey(1) ==27:
-                video.release()
+                exit(0)
 # print f.read(1080)
-exit(0)   
+# exit(0)   
