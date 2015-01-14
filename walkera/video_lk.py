@@ -17,7 +17,7 @@ lk_params = dict( winSize  = (15, 15),
                   maxLevel = 2,
                   criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
 
-feature_params = dict( maxCorners = 20,
+feature_params = dict( maxCorners = 50,
                        qualityLevel = 0.3,
                        minDistance = 7,
                        blockSize = 7 )
@@ -58,7 +58,7 @@ class Video:
 
 
     def doLK(self, frame):
-        start = time.time()
+        #start = time.time()
         vis = frame.copy()
         frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         if len(self.tracks) > 0:
@@ -92,12 +92,17 @@ class Video:
                     self.tracks.append([(x, y)])
         self.frame_idx += 1
         self.prev_gray = frame_gray
-        end = time.time()
-        print 'latency', end-start
+        #end = time.time()
+        #print 'latency fps', 1/(end-start)
         cv2.imshow('lk_track', vis)
 
-        ch = 0xFF & cv2.waitKey(1)
+        #ch = 0xFF & cv2.waitKey(1)
         #if ch == 27:
+        #    self.reading = False
+        #    self.sock.close()
+        #    del self.myThread
+            
+        #    exit(0)
         #    break
         
     def readframes(self, recv_buffer=4096, delim='\n'):
@@ -151,7 +156,7 @@ class Video:
         self.resp = open('noFaceRecognized.avi','r')
         #print resp.read(10)
         size = 0
-        a = time.time()
+        #a = time.time()
         n = 1
         avg = 0
         x = 0
