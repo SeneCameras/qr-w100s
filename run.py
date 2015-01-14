@@ -7,7 +7,7 @@ c = Control()
 v.setClassifier("haarcascade_frontalface_alt2.xml")
 v.startThread()
 c.startThread()
-#v.detectFaces = True
+v.detectFaces = True
 
 Upkey = 2490368
 DownKey = 2621440
