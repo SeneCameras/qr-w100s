@@ -16,10 +16,14 @@ class Control:
         self.rotation = 0x044a
         self.elev = 0x044a
         self.aile =  0x044a
-
-    
+        self.stop = True
+        self.cnt = 0
         self.data = bytearray(18)
-
+        self.nudgex = 0
+        self.nudgey = 0
+        self.nudgez = 0
+        self.nudgeyaw = 0
+        
         self.sock = socket.socket()
         self.sock.connect(("192.168.10.1", 2001))
 
@@ -55,11 +59,35 @@ class Control:
         #    exit(0)
         #if key == 119:
         #    throttle = (throttle + 10)
-            self.update()
+            if (self.stop):
+                self.throttle = 0x02bf
+                self.rotation = 0x044a
+                self.elev = 0x044a
+                self.aile =  0x044a
+                self.cnt = 0
+                self.nudgex = 0
+                self.nudgey = 0
+                self.nudgez = 0
+                self.nudgeyaw = 0
+
+            elif (self.cnt > 0):
+                if (self.cnt == 1):
+                    self.throttle -= self.nudgez
+                    self.aile -= self.nudgex
+                    self.elev -= self.nudgey
+                    self.rotation -= self.nudgeyaw
+                    self.nudgex = 0
+                    self.nudgey = 0
+                    self.nudgez = 0
+                    self.nudgeyaw = 0
+
+                self.cnt = self.cnt - 1
+                
+            self.update()                    
             self.sock.send(self.data) 
             #print binascii.hexlify(data)
             time.sleep(.03)        
-   
+            
     def startThread(self):
         self.myThread = threading.Thread(target=self.loop)
         self.myThread.start()
@@ -70,3 +98,28 @@ class Control:
     def closeSocket(self):
         self.sock.close()
     
+    def stopDrone(self):
+        self.stop = True
+        
+    def toggleStop(self):
+        self.stop = not self.stop
+        print "STOPPED: ", self.stop
+        
+    def setThrottle(self,val):
+        pass
+    def setAile(self,val):
+        pass
+    def setElev(self,val):
+        pass
+    def setRotation(self, val):
+        pass
+    def nudge(self, x, y, z, yaw, cnt = 10):
+        self.cnt = self.cnt+cnt
+        self.nudgex += x
+        self.nudgey += y
+        self.nudgez += z
+        self.nudgeyaw += yaw
+        self.throttle += self.nudgez
+        self.aile += self.nudgex
+        self.elev += self.nudgey
+        self.rotation += self.nudgeyaw
