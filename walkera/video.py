@@ -116,9 +116,10 @@ class Video:
                     for f in frontalfaces:
                         x, y, w, h = [ v*self.DOWNSCALE for v in f ]
                     #     # draws bounding box
+                        
                         cv2.rectangle(i, (x,y), (x+w,y+h), (0,0,255))
-                    if len(frontalfaces) >= 1:
-                        x, y, w, h = [ v*self.DOWNSCALE for v in frontalfaces[0] ]
+                        if len(frontalfaces) >= 1:
+                            x, y, w, h = [ v*self.DOWNSCALE for v in frontalfaces[0] ]
                             if i.shape[1]*(2/3.) < x+w/2:# too far right
                                 cv2.rectangle(i, (x,y), (x+w,y+h), (0,0,255))
                         #         # print "turn counterclockwise"
