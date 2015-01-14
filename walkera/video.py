@@ -105,19 +105,21 @@ class Video:
             #print a, b
             try:
 
-                # i = cv2.imdecode(np.fromstring(frame+'\xff\xd9', dtype=np.uint8),cv2.CV_LOAD_IMAGE_COLOR)
                 i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),1) # cv2.IMREAD_COLOR on PC = 1 = cv2.CV_LOAD_IMAGE_COLOR on mac. srsly
                 
-                if (self.detectFaces and self.frontalclassifier):
-                # detect faces
-                    minisize = (i.shape[1]/self.DOWNSCALE,i.shape[0]/self.DOWNSCALE)
-                    miniframe = cv2.resize(i, minisize)
-                    frontalfaces = self.frontalclassifier.detectMultiScale(miniframe)
-                    for f in frontalfaces:
-                        x, y, w, h = [ v*self.DOWNSCALE for v in f ]
-                    #     # draws bounding box
-                        
-                        cv2.rectangle(i, (x,y), (x+w,y+h), (0,0,255))
+                #i = cv2.imdecode(np.fromstring(frame+'\xff\xd9', dtype=np.uint8),cv2.CV_LOAD_IMAGE_COLOR)
+                if i != None:
+                    # i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),cv2.IMREAD_COLOR)
+                    
+                    if (self.detectFaces and self.frontalclassifier):
+                    # detect faces
+                        minisize = (i.shape[1]/self.DOWNSCALE,i.shape[0]/self.DOWNSCALE)
+                        miniframe = cv2.resize(i, minisize)
+                        frontalfaces = self.frontalclassifier.detectMultiScale(miniframe)
+                        for f in frontalfaces:
+                            x, y, w, h = [ v*self.DOWNSCALE for v in f ]
+                        #     # draws bounding box
+                            cv2.rectangle(i, (x,y), (x+w,y+h), (0,0,255))
                         if len(frontalfaces) >= 1:
                             x, y, w, h = [ v*self.DOWNSCALE for v in frontalfaces[0] ]
                             if i.shape[1]*(2/3.) < x+w/2:# too far right
