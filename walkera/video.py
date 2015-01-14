@@ -77,8 +77,8 @@ class Video:
 
 
     def loop(self,image_label):
-        # self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
-        self.resp = open('noFaceRecognized.avi','r')
+        self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
+        # self.resp = open('noFaceRecognized.avi','r')
         #print resp.read(10)
         size = 0
         a = time.time()
