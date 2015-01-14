@@ -106,13 +106,18 @@ class Control:
         print "STOPPED: ", self.stop
         
     def setThrottle(self,val):
-        pass
+        self.throttle = val
+        print "set throttle ", (val)
+        
     def setAile(self,val):
-        pass
+        self.aile = val
+        
     def setElev(self,val):
-        pass
+        self.elev = val
+        
     def setRotation(self, val):
-        pass
+        self.rotation = val
+        print 'rotation: ', self.rotation
     def nudge(self, x, y, z, yaw, cnt = 10):
         self.cnt = self.cnt+cnt
         self.nudgex += x

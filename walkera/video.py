@@ -150,7 +150,8 @@ class Video:
                         exit(0)
                 
             except Exception, e:
-                print "EXCEPTION:", e   
+                print "EXCEPTION:", e  
+                raise e
             #if b==-1:
             #    print "HAS -1 b", x
             #if a!=-1 and b!=-1:
@@ -164,6 +165,7 @@ class Video:
  
     def setKeypress(self, func):
         self.onkeypress = func
+        self.root.bind("<Key>", lambda k: self.onkeypress(k.keycode))
 
     def askdirectory(self):
         # defining options for opening a directory
@@ -208,6 +210,6 @@ class Video:
         image_label.pack()
         self.root.after(0, func=lambda: self.loop(image_label))
 
-        self.root.mainloop()
-        # self.myThread = threading.Thread(target=self.loop)
-        # self.myThread.start()
+        
+        self.myThread = threading.Thread(target=self.root.mainloop)
+        self.myThread.start()
