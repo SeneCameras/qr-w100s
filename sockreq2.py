@@ -2,6 +2,11 @@ import urllib2
 import time
 import cv2
 import numpy as np
+import Tkinter as tk
+import tkFileDialog
+import PIL.Image
+import PIL.ImageTk
+import os
 
 def readframes(resp, recv_buffer=4096, delim='\n'):
     buffer = ''
@@ -47,32 +52,19 @@ def readframes(resp, recv_buffer=4096, delim='\n'):
                     fulldata += data
                     buffer += data
                 state = 0
+                if root.quit_flag:
+                    root.quit_flag = False
+                    root.destroy()
+                    exit(0)
+                # root.after(0, func=lambda: update_all(root, image_label))
                 yield buffer
-    return
+    quit(0)
+    # return
 
-if __name__ == "__main__":
-
-    password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-
-    top_level_url = "http://192.168.10.1:8080"
-    password_mgr.add_password(None, top_level_url, 'admin', 'admin123')
-
-    handler = urllib2.HTTPBasicAuthHandler(password_mgr)
-    opener = urllib2.build_opener(handler)
-    opener.open("http://192.168.10.1:8080/?action=stream")
-    urllib2.install_opener(opener)
-    print 'opening url'
-    # resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
-    resp = open('noFaceRecognized.avi','r')
-    # size = 0
-    DOWNSCALE = 4
-    frontalclassifier = cv2.CascadeClassifier("haarcascade_frontalface_alt2.xml")
-    a = time.time()
-    n = 1
-    avg = 0
-    x = 0
-    # moviefile = open('facePeriodicallyRecognized.avi','w')
-
+def update_image(image_label):
+    global recording
+    global images
+    images = []
     for frame in readframes(resp):
         # x = x+1
         # t = time.time()
@@ -83,7 +75,7 @@ if __name__ == "__main__":
             frame = cv2.imdecode(np.fromstring(frame+'\xff\xd9', dtype=np.uint8),cv2.CV_LOAD_IMAGE_COLOR)
             # if frame != None:
             # jpgs += 1
-            if True:
+            if frame != None:
                 # detect faces
                 minisize = (frame.shape[1]/DOWNSCALE,frame.shape[0]/DOWNSCALE)
                 miniframe = cv2.resize(frame, minisize)
@@ -104,14 +96,90 @@ if __name__ == "__main__":
                 #         # print "centered"
                         cv2.rectangle(frame, (x,y), (x+w,y+h), (255,0,0))
                 #     print (x+w/2.),(y+h/2.),(w**2+h**2)**0.5
+                cv_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                pil_image = PIL.Image.fromarray(cv_image)
+                tk_image = PIL.ImageTk.PhotoImage(image=pil_image)
+                if recording:
+                    images += [frame]
+                image_label.configure(image=tk_image)
+                image_label._image_cache = tk_image  # avoid garbage collection
+                root.update()
+                # lmain.after(10, show_frame)
+                # if cv2.waitKey(1) ==27:
+                #     # moviefile.write(fulldata)
+                #     # print fulldata
 
-                cv2.imshow('i',frame)
-                if cv2.waitKey(1) ==27:
-                    # moviefile.write(fulldata)
-                    # print fulldata
-
-                    exit(0)
+                #     exit(0)
         except Exception, e:
             print e
 
-print jpgs
+def askdirectory():
+    # defining options for opening a directory
+    global recording
+    global images
+    dir_opt = options = {}
+    options['initialdir'] = 'C:\\'
+    options['mustexist'] = False
+    options['parent'] = root
+    options['title'] = 'This is a title'
+
+    """Returns a selected directoryname."""
+    if recording == True:
+        print 'saving'
+        recording = False
+        directory = tkFileDialog.askdirectory(**dir_opt) + '/arbitrary'
+        print "Location of folder:", directory
+        if not os.path.exists(directory): os.makedirs(directory)
+        # f = open(directory+'/image.jpeg','w')
+        # print 
+        for x in range(len(images)):
+            cv2.imwrite(directory+'/image%s.jpg' % x,images[x])
+
+def startRecording():
+    # global images
+    global recording
+    if recording == False:
+        print "recording"
+        recording = True
+
+if __name__ == "__main__":
+
+    password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+
+    top_level_url = "http://192.168.10.1:8080"
+    password_mgr.add_password(None, top_level_url, 'admin', 'admin123')
+
+    handler = urllib2.HTTPBasicAuthHandler(password_mgr)
+    opener = urllib2.build_opener(handler)
+    opener.open("http://192.168.10.1:8080/?action=stream")
+    urllib2.install_opener(opener)
+    print 'opening url'
+    resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
+    # resp = open('noFaceRecognized.avi','r')
+    # size = 0
+    DOWNSCALE = 4
+    frontalclassifier = cv2.CascadeClassifier("haarcascade_frontalface_alt2.xml")
+    a = time.time()
+    n = 1
+    avg = 0
+    x = 0
+    # moviefile = open('facePeriodicallyRecognized.avi','w')
+    # global root
+    # global recording
+    recording = False
+    root = tk.Tk()
+    root.bind('<Escape>', lambda e: set_quit_flag())  
+    root.bind("<KeyRelease-s>", lambda e: askdirectory())  
+    root.bind("<KeyRelease-r>", lambda e: startRecording())
+    setattr(root, 'quit_flag', False)
+
+    def set_quit_flag():
+        root.quit_flag = True
+    root.protocol('WM_DELETE_WINDOW', set_quit_flag)
+    image_label = tk.Label(master=root)  # label for the video frame
+    image_label.pack()
+    # root.after(0, func=lambda: update_all(root, image_label))
+    root.after(0, func=lambda: update_image(image_label))
+
+    root.mainloop()
+# print jpgs

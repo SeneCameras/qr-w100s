@@ -3,6 +3,8 @@ import time
 import cv2
 import numpy as np
 import threading
+import Tkinter as tk
+from PIL import Image, ImageTk
 class Video:
     def __init__(self):
         self.onkeypress = False
@@ -115,24 +117,28 @@ class Video:
                     #         # print "centered"
                             cv2.rectangle(i, (x,y), (x+w,y+h), (255,0,0))
                     #     print (x+w/2.),(y+h/2.),(w**2+h**2)**0.5
+                    # cv_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    pil_image = PIL.Image.fromarray(cv_image)
+                    tk_image = PIL.ImageTk.PhotoImage(image=pil_image)
+                    image_label.configure(image=tk_image)
+                    image_label._image_cache = tk_image  # avoid garbage collection
+                    root.update()
 
-                
-                
-                
-                cv2.imshow('i',i)
-                
+                # cv2.imshow('i',i)
 
-                if (self.onkeypress):
-                    key = cv2.waitKey(1)
-                    if (key != -1):
-                        self.onkeypress(key)
-                if cv2.waitKey(1) ==27:
-                    self.reading = False
-                    del self.myThread
-                    exit(0)
+
+                # if (self.onkeypress):
+                #     key = cv2.waitKey(1)
+                #     if (key != -1):
+                #         self.onkeypress(key)
+                # if cv2.waitKey(1) ==27:
+                #     self.reading = False
+                #     del self.myThread
+                #     exit(0)
                 
             except Exception, e:
-                print "EXCEPTION:", e   
+                # print "EXCEPTION:", e   
+                pass
             #if b==-1:
             #    print "HAS -1 b", x
             #if a!=-1 and b!=-1:
@@ -150,3 +156,25 @@ class Video:
     def startThread(self):
         self.myThread = threading.Thread(target=self.loop)
         self.myThread.start()
+
+def update_all(root, image_label):
+    if root.quit_flag:
+        root.destroy()  # this avoids the update event being in limbo
+    else:
+        # update_image(image_label)
+        root.after(1, func=lambda: update_all(root, image_label))
+
+if __name__ == '__main__':
+    root = tk.Tk()
+    setattr(root, 'quit_flag', False)
+    def set_quit_flag():
+        root.quit_flag = True
+    root.protocol('WM_DELETE_WINDOW', set_quit_flag)
+    global image_label
+    image_label = tk.Label(master=root)  # label for the video frame
+    image_label.pack()
+    v = Video()
+    v.setClassifier("haarcascade_frontalface_alt2.xml")
+    v.startThread()
+    root.after(0, func=lambda: update_all(root, image_label))
+    root.mainloop()
