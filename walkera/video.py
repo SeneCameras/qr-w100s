@@ -7,6 +7,7 @@ import Tkinter as tk
 import PIL.Image
 import PIL.ImageTk
 import os
+import tkFileDialog
 class Video:
     def __init__(self):
         self.onkeypress = False
@@ -103,6 +104,7 @@ class Video:
             #    frame = frame[0:-20+b]
             #print a, b
             try:
+
                 # i = cv2.imdecode(np.fromstring(frame+'\xff\xd9', dtype=np.uint8),cv2.CV_LOAD_IMAGE_COLOR)
                 i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),1) # cv2.IMREAD_COLOR on PC = 1 = cv2.CV_LOAD_IMAGE_COLOR on mac. srsly
                 
@@ -117,33 +119,32 @@ class Video:
                         cv2.rectangle(i, (x,y), (x+w,y+h), (0,0,255))
                     if len(frontalfaces) >= 1:
                         x, y, w, h = [ v*self.DOWNSCALE for v in frontalfaces[0] ]
-                        if i.shape[1]*(2/3.) < x+w/2:# too far right
-                            cv2.rectangle(i, (x,y), (x+w,y+h), (0,0,255))
-                    #         # print "turn counterclockwise"
-                        elif i.shape[1]*(1/3.) > x+w/2: # too far left
-                    #         # print "turn clockwise"
-                            cv2.rectangle(i, (x,y), (x+w,y+h), (0,255,0))
-                        else: # centered
-                    #         # print "centered"
-                            cv2.rectangle(i, (x,y), (x+w,y+h), (255,0,0))
-                    #     print (x+w/2.),(y+h/2.),(w**2+h**2)**0.5
-                cv_image = cv2.cvtColor(i, cv2.COLOR_BGR2RGB)
-                pil_image = PIL.Image.fromarray(cv_image)
-                tk_image = PIL.ImageTk.PhotoImage(image=pil_image)
-                if self.recording:
-                    images += [i]
-                image_label.configure(image=tk_image)
-                image_label._image_cache = tk_image  # avoid garbage collection
-                self.root.update()
-                # cv2.imshow('i',i)
-                
-                key = cv2.waitKey(1)
-                if (key != -1 and self.onkeypress):
-                    self.onkeypress(key)
-                if key==27:
-                    self.reading = False
-                    del self.myThread
-                    exit(0)
+                            if i.shape[1]*(2/3.) < x+w/2:# too far right
+                                cv2.rectangle(i, (x,y), (x+w,y+h), (0,0,255))
+                        #         # print "turn counterclockwise"
+                            elif i.shape[1]*(1/3.) > x+w/2: # too far left
+                        #         # print "turn clockwise"
+                                cv2.rectangle(i, (x,y), (x+w,y+h), (0,255,0))
+                            else: # centered
+                        #         # print "centered"
+                                cv2.rectangle(i, (x,y), (x+w,y+h), (255,0,0))
+                        #     print (x+w/2.),(y+h/2.),(w**2+h**2)**0.5
+                    cv_image = cv2.cvtColor(i, cv2.COLOR_BGR2RGB)
+                    pil_image = PIL.Image.fromarray(cv_image)
+                    tk_image = PIL.ImageTk.PhotoImage(image=pil_image)
+                    if self.recording:
+                        self.images += [i]
+                    image_label.configure(image=tk_image)
+                    image_label._image_cache = tk_image  # avoid garbage collection
+                    self.root.update()
+                    
+                    key = cv2.waitKey(1)
+                    if (key != -1 and self.onkeypress):
+                        self.onkeypress(key)
+                    if key==27:
+                        self.reading = False
+                        del self.myThread
+                        exit(0)
                 
             except Exception, e:
                 print "EXCEPTION:", e   
@@ -161,7 +162,7 @@ class Video:
     def setKeypress(self, func):
         self.onkeypress = func
 
-    def askdirectory():
+    def askdirectory(self):
         # defining options for opening a directory
         dir_opt = options = {}
         options['initialdir'] = 'C:\\'
@@ -178,10 +179,15 @@ class Video:
             if not os.path.exists(directory): os.makedirs(directory)
             # f = open(directory+'/image.jpeg','w')
             # print 
+            imageNames = ''
             for x in range(len(self.images)):
                 cv2.imwrite(directory+'/image%s.jpg' % x,self.images[x])
+                imageNames += 'image%s.jpg ,\n\r' % x
+            fileText = '[\n\r' + imageNames + ']'
+            newFile = open(directory+'/images.txt', 'w')
+            newFile.write(fileText)
 
-    def startRecording():
+    def startRecording(self):
         if self.recording == False:
             print "recording"
             self.recording = True
@@ -191,8 +197,8 @@ class Video:
         def set_quit_flag():
             self.root.quit_flag = True
         self.root.bind('<Escape>', lambda e: set_quit_flag())  
-        self.root.bind("<KeyRelease-s>", lambda e: askdirectory())  
-        self.root.bind("<KeyRelease-r>", lambda e: startRecording())
+        self.root.bind("<KeyRelease-s>", lambda e: self.askdirectory())  
+        self.root.bind("<KeyRelease-r>", lambda e: self.startRecording())
         setattr(self.root, 'quit_flag', False)    
         self.root.protocol('WM_DELETE_WINDOW', set_quit_flag)
         image_label = tk.Label(master=self.root)  # label for the video frame
