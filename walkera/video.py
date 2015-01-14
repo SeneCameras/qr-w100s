@@ -179,8 +179,13 @@ class Video:
             if not os.path.exists(directory): os.makedirs(directory)
             # f = open(directory+'/image.jpeg','w')
             # print 
+            imageNames = ''
             for x in range(len(self.images)):
                 cv2.imwrite(directory+'/image%s.jpg' % x,self.images[x])
+                imageNames += 'image%s.jpg ,\n\r' % x
+            fileText = '[\n\r' + imageNames + ']'
+            newFile = open(directory+'/images.txt', 'w')
+            newFile.write(fileText)
 
     def startRecording(self):
         if self.recording == False:
