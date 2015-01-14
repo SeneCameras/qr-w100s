@@ -1,4 +1,4 @@
-from walkera.video import Video
+from walkera.video_lk import Video
 from walkera.control import Control
 import time
 v = Video()
