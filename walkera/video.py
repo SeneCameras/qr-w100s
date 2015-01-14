@@ -3,6 +3,10 @@ import time
 import cv2
 import numpy as np
 import threading
+import Tkinter as tk
+import PIL.Image
+import PIL.ImageTk
+import os
 class Video:
     def __init__(self):
         self.onkeypress = False
@@ -19,6 +23,11 @@ class Video:
         self.opener.open("http://192.168.10.1:8080/?action=stream")
         urllib2.install_opener(self.opener)
         print 'opening url'
+
+        self.recording = False
+        self.images = []
+
+        self.root = tk.Tk()
         
     def setClassifier(self, classifierxml):
         self.frontalclassifier = cv2.CascadeClassifier(classifierxml)
@@ -61,12 +70,17 @@ class Video:
                         data = self.resp.read(bytes_remaining)
                         buffer += data
                     self.state = 0
+                    if self.root.quit_flag:
+                        self.root.quit_flag = False
+                        self.root.destroy()
+                        exit(0)
                     yield buffer
-        return
+        quit(0)
 
 
-    def loop(self):
-        self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
+    def loop(self,image_label):
+        # self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
+        self.resp = open('noFaceRecognized.avi','r')
         #print resp.read(10)
         size = 0
         a = time.time()
@@ -115,11 +129,15 @@ class Video:
                     #         # print "centered"
                             cv2.rectangle(i, (x,y), (x+w,y+h), (255,0,0))
                     #     print (x+w/2.),(y+h/2.),(w**2+h**2)**0.5
-
-                
-                
-                
-                cv2.imshow('i',i)
+                cv_image = cv2.cvtColor(i, cv2.COLOR_BGR2RGB)
+                pil_image = PIL.Image.fromarray(cv_image)
+                tk_image = PIL.ImageTk.PhotoImage(image=pil_image)
+                if self.recording:
+                    images += [i]
+                image_label.configure(image=tk_image)
+                image_label._image_cache = tk_image  # avoid garbage collection
+                self.root.update()
+                # cv2.imshow('i',i)
                 
                 key = cv2.waitKey(1)
                 if (key != -1 and self.onkeypress):
@@ -144,7 +162,44 @@ class Video:
  
     def setKeypress(self, func):
         self.onkeypress = func
-        
+
+    def askdirectory():
+        # defining options for opening a directory
+        dir_opt = options = {}
+        options['initialdir'] = 'C:\\'
+        options['mustexist'] = False
+        options['parent'] = self.root
+        options['title'] = 'Title'
+
+        """Returns a selected directoryname."""
+        if self.recording == True:
+            print 'saving'
+            self.recording = False
+            directory = tkFileDialog.askdirectory(**dir_opt) + '/arbitrary'
+            print "Location of folder:", directory
+            if not os.path.exists(directory): os.makedirs(directory)
+            # f = open(directory+'/image.jpeg','w')
+            # print 
+            for x in range(len(self.images)):
+                cv2.imwrite(directory+'/image%s.jpg' % x,self.images[x])
+
+    def startRecording():
+        if self.recording == False:
+            print "recording"
+            self.recording = True
+
     def startThread(self):
-        self.myThread = threading.Thread(target=self.loop)
-        self.myThread.start()
+        def set_quit_flag():
+            self.root.quit_flag = True
+        self.root.bind('<Escape>', lambda e: set_quit_flag())  
+        self.root.bind("<KeyRelease-s>", lambda e: askdirectory())  
+        self.root.bind("<KeyRelease-r>", lambda e: startRecording())
+        setattr(self.root, 'quit_flag', False)    
+        self.root.protocol('WM_DELETE_WINDOW', set_quit_flag)
+        image_label = tk.Label(master=self.root)  # label for the video frame
+        image_label.pack()
+        self.root.after(0, func=lambda: self.loop(image_label))
+
+        self.root.mainloop()
+        # self.myThread = threading.Thread(target=self.loop)
+        # self.myThread.start()

@@ -7,7 +7,7 @@ root = tk.Tk()
 root.bind('<Escape>', lambda e: root.quit())
 
 
-v = Video(root)
+v = Video()
 v.setClassifier("haarcascade_frontalface_alt2.xml")
 v.startThread()
 v.detectFaces = True

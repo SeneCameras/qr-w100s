@@ -78,6 +78,7 @@ class TkFileDialogExample(Tkinter.Frame):
     # open file on your own
     if filename:
       return open(filename, 'w')
+      
   def on_return_release(self, event):
     self.text.insert("end", "boink! ")
   def askdirectory(self):
