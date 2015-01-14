@@ -99,6 +99,9 @@ class Control:
         self.sock.close()
     
     def stopDrone(self):
+        self.stop = True
+        
+    def toggleStop(self):
         self.stop = not self.stop
         print "STOPPED: ", self.stop
         
