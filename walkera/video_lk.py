@@ -8,6 +8,7 @@ import PIL.Image
 import PIL.ImageTk
 import os
 import tkFileDialog
+import ttk
 
 import video
 from common import anorm2, draw_str
@@ -51,12 +52,14 @@ class Video:
 
         self.recording = False
         self.images = []
+        self.root = tk.Tk()
+        self.notebook = ttk.Notebook(self.root)
         
     def setClassifier(self, classifierxml):
         self.frontalclassifier = cv2.CascadeClassifier(classifierxml)
 
 
-    def doLK(self, frame):
+    def doLK(self, frame,image_label_lk):
         #start = time.time()
         vis = frame.copy()
         frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -93,7 +96,14 @@ class Video:
         self.prev_gray = frame_gray
         #end = time.time()
         #print 'latency fps', 1/(end-start)
-        cv2.imshow('lk_track', vis)
+        # cv2.imshow('lk_track', vis)
+        cv_image = cv2.cvtColor(vis, cv2.COLOR_BGR2RGB)
+        pil_image = PIL.Image.fromarray(cv_image)
+        tk_image = PIL.ImageTk.PhotoImage(image=pil_image)
+
+        image_label_lk.configure(image=tk_image)
+        image_label_lk._image_cache = tk_image  # avoid garbage collection
+        self.root.update()
 
         #ch = 0xFF & cv2.waitKey(1)
         #if ch == 27:
@@ -150,9 +160,9 @@ class Video:
         quit(0)
 
 
-    def loop(self,image_label):
-        self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
-        # self.resp = open('noFaceRecognized.avi','r')
+    def loop(self,image_label,image_label_lk):
+        # self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
+        self.resp = open('noFaceRecognized.avi','r')
         #print resp.read(10)
         size = 0
         #a = time.time()
@@ -179,10 +189,10 @@ class Video:
             try:
                 s = time.time()
                 i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),1) # cv2.IMREAD_COLOR on PC = 1 = cv2.CV_LOAD_IMAGE_COLOR on mac. srsly
-                self.doLK(i)
-                print "whole thing", 1/(time.time()-s)
                 #i = cv2.imdecode(np.fromstring(frame+'\xff\xd9', dtype=np.uint8),cv2.CV_LOAD_IMAGE_COLOR)
                 if i != None:
+                    self.doLK(i,image_label_lk)
+                    print "whole thing", time.time()-s
                     # i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),cv2.IMREAD_COLOR)
                     
                     if (self.detectFaces and self.frontalclassifier):
@@ -213,6 +223,9 @@ class Video:
                         self.images += [i]
                     image_label.configure(image=tk_image)
                     image_label._image_cache = tk_image  # avoid garbage collection
+                    # self.notebook.update()
+                    image_label.pack()
+                    image_label_lk.pack()
                     self.root.update()
                     
                     #key = cv2.waitKey(1)
@@ -272,7 +285,6 @@ class Video:
             self.recording = True
 
     def startThread(self):
-        self.root = tk.Tk()
         def set_quit_flag():
             self.root.quit_flag = True
         self.root.bind('<Escape>', lambda e: set_quit_flag())  
@@ -280,10 +292,19 @@ class Video:
         self.root.bind("<KeyRelease-r>", lambda e: self.startRecording())
         setattr(self.root, 'quit_flag', False)    
         self.root.protocol('WM_DELETE_WINDOW', set_quit_flag)
-        image_label = tk.Label(master=self.root)  # label for the video frame
-        image_label.pack()
-        self.root.after(0, func=lambda: self.loop(image_label))
-
         
-        self.myThread = threading.Thread(target=self.root.mainloop)
-        self.myThread.start()
+        frame1 = ttk.Labelframe(master=self.notebook)
+        image_label = tk.Label(master=frame1)  # label for the video frame
+        self.notebook.add(frame1, text='Raw')
+
+        frame2 = ttk.Labelframe(master=self.notebook)
+        image_label_lk = tk.Label(master=frame2)  # label for the video frame
+        self.notebook.add(frame2, text='Lk')
+
+        self.notebook.pack()
+
+        self.root.after(0, func=lambda: self.loop(image_label,image_label_lk))
+        self.root.mainloop()
+        
+        # self.myThread = threading.Thread(target=self.root.mainloop)
+        # self.myThread.start()

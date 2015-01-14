@@ -175,6 +175,7 @@ if __name__ == "__main__":
 
     def set_quit_flag():
         root.quit_flag = True
+        
     root.protocol('WM_DELETE_WINDOW', set_quit_flag)
     image_label = tk.Label(master=root)  # label for the video frame
     image_label.pack()
