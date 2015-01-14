@@ -26,8 +26,6 @@ class Video:
 
         self.recording = False
         self.images = []
-
-        self.root = tk.Tk()
         
     def setClassifier(self, classifierxml):
         self.frontalclassifier = cv2.CascadeClassifier(classifierxml)
@@ -189,6 +187,7 @@ class Video:
             self.recording = True
 
     def startThread(self):
+        self.root = tk.Tk()
         def set_quit_flag():
             self.root.quit_flag = True
         self.root.bind('<Escape>', lambda e: set_quit_flag())  
