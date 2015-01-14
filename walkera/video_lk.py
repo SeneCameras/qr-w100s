@@ -92,10 +92,10 @@ class Video:
         self.frame_idx += 1
         self.prev_gray = frame_gray
         end = time.time()
-        print 'latency', start-end
-        #cv2.imshow('lk_track', vis)
+        print 'latency', end-start
+        cv2.imshow('lk_track', vis)
 
-        #ch = 0xFF & cv2.waitKey(1)
+        ch = 0xFF & cv2.waitKey(1)
         #if ch == 27:
         #    break
         
@@ -172,9 +172,10 @@ class Video:
             #    frame = frame[0:-20+b]
             #print a, b
             try:
-
+                s = time.time()
                 i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),1) # cv2.IMREAD_COLOR on PC = 1 = cv2.CV_LOAD_IMAGE_COLOR on mac. srsly
                 self.doLK(i)
+                print "whole thing", time.time()-s
                 #i = cv2.imdecode(np.fromstring(frame+'\xff\xd9', dtype=np.uint8),cv2.CV_LOAD_IMAGE_COLOR)
                 if i != None:
                     # i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),cv2.IMREAD_COLOR)
@@ -209,13 +210,13 @@ class Video:
                     image_label._image_cache = tk_image  # avoid garbage collection
                     self.root.update()
                     
-                    key = cv2.waitKey(1)
-                    if (key != -1 and self.onkeypress):
-                        self.onkeypress(key)
-                    if key==27:
-                        self.reading = False
-                        del self.myThread
-                        exit(0)
+                    #key = cv2.waitKey(1)
+                    #if (key != -1 and self.onkeypress):
+                    #    self.onkeypress(key)
+                    #if key==27:
+                    #    self.reading = False
+                    #    del self.myThread
+                    #    exit(0)
                 
             except Exception, e:
                 print "EXCEPTION:", e  
