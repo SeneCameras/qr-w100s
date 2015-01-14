@@ -51,6 +51,7 @@ class Video:
 
         self.recording = False
         self.images = []
+        self.root = tk.Tk()
         
     def setClassifier(self, classifierxml):
         self.frontalclassifier = cv2.CascadeClassifier(classifierxml)
@@ -146,8 +147,8 @@ class Video:
 
 
     def loop(self,image_label):
-        self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
-        # self.resp = open('noFaceRecognized.avi','r')
+        # self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
+        self.resp = open('noFaceRecognized.avi','r')
         #print resp.read(10)
         size = 0
         a = time.time()
@@ -174,10 +175,10 @@ class Video:
             try:
                 s = time.time()
                 i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),1) # cv2.IMREAD_COLOR on PC = 1 = cv2.CV_LOAD_IMAGE_COLOR on mac. srsly
-                self.doLK(i)
-                print "whole thing", time.time()-s
                 #i = cv2.imdecode(np.fromstring(frame+'\xff\xd9', dtype=np.uint8),cv2.CV_LOAD_IMAGE_COLOR)
                 if i != None:
+                    self.doLK(i)
+                    print "whole thing", time.time()-s
                     # i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),cv2.IMREAD_COLOR)
                     
                     if (self.detectFaces and self.frontalclassifier):
@@ -267,7 +268,6 @@ class Video:
             self.recording = True
 
     def startThread(self):
-        self.root = tk.Tk()
         def set_quit_flag():
             self.root.quit_flag = True
         self.root.bind('<Escape>', lambda e: set_quit_flag())  
@@ -278,7 +278,7 @@ class Video:
         image_label = tk.Label(master=self.root)  # label for the video frame
         image_label.pack()
         self.root.after(0, func=lambda: self.loop(image_label))
-
+        self.root.mainloop()
         
-        self.myThread = threading.Thread(target=self.root.mainloop)
-        self.myThread.start()
+        # self.myThread = threading.Thread(target=self.root.mainloop)
+        # self.myThread.start()

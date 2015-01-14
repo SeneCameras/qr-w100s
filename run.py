@@ -5,9 +5,8 @@ v = Video()
 c = Control()
 
 v.setClassifier("haarcascade_frontalface_alt2.xml")
-v.startThread()
 c.startThread()
-#v.detectFaces = True
+v.detectFaces = True
 
 Upkey = 2490368
 DownKey = 2621440
@@ -49,3 +48,4 @@ def kp(key):
         time.sleep(.1)
         c.stopThread()
 v.setKeypress(kp)
+v.startThread()
