@@ -105,8 +105,9 @@ class Video:
 
         image_label_lk.configure(image=tk_image)
         image_label_lk._image_cache = tk_image  # avoid garbage collection
+        # print 'about to call self root update'
         self.root.update()
-
+        # print 'self root update return'
         #ch = 0xFF & cv2.waitKey(1)
         #if ch == 27:
         #    self.reading = False
@@ -125,7 +126,7 @@ class Video:
         self.reading = True
         self.state = 0
         ts = 0
-        print ' in readframes'
+  #      print ' in readframes'
         while data and self.reading:
             data = self.resp.read(recv_buffer)
             buffer += data
@@ -136,19 +137,19 @@ class Video:
                     if line[0:20] == "--boundarydonotcross":
                         self.state = 1
                 elif self.state==1:
-                    #print line.split(":")
+                    # print line.split(":")
                     self.state = 2
                 elif self.state==2:
                     #print line
                     datalength = int(line.split(":")[1][1:-1])
                     self.state = 3
-                    #print "datalen", datalength
+ #                   print "datalen", datalength
                     #print buffer
                 elif self.state==3:
                     self.state = 4
                     
                     timestamp = float(line.split(":")[1][1:-1])
-                    #print "timestamp:", timestamp
+#                    print "timestamp:", timestamp
                     #print "lag", timestamp - ts, 1/( timestamp - ts)
                     ts = timestamp
                 else:
@@ -156,10 +157,12 @@ class Video:
                         bytes_remaining = datalength - len(buffer)
                         data = self.resp.read(bytes_remaining)
                         buffer += data
+
                     self.state = 0
                     if self.root.quit_flag:
                         self.root.quit_flag = False
                         self.root.destroy()
+                        
                         exit(0)
                     yield buffer
         self.root.destroy()
@@ -167,8 +170,8 @@ class Video:
 
 
     def loop(self,image_label,image_label_lk):
-        # self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
-        self.resp = open('noFaceRecognized.avi','r')
+        self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
+        # self.resp = open('noFaceRecognized.avi','r')
         #print resp.read(10)
         size = 0
         #a = time.time()
@@ -177,7 +180,8 @@ class Video:
         x = 0
 
         for frame in self.readframes():
-          
+            x = x + 1
+            # print 'frame yielded'
             #dump = open('dump/dumpframe'+str(x),'w')
             #x = x+1
             #dump.write(frame)
@@ -196,9 +200,10 @@ class Video:
                 s = time.time()
                 i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),1) # cv2.IMREAD_COLOR on PC = 1 = cv2.CV_LOAD_IMAGE_COLOR on mac. srsly
                 #i = cv2.imdecode(np.fromstring(frame+'\xff\xd9', dtype=np.uint8),cv2.CV_LOAD_IMAGE_COLOR)
-                if i != None:
+                #if (x%5 > 2 ) and i != None:
+                if (i != None): #maybe need to drop frames...
                     self.doLK(i,image_label_lk)
-                    print "whole thing", time.time()-s
+                   
                     # i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),cv2.IMREAD_COLOR)
                     
                     if (self.detectFaces and self.frontalclassifier):
@@ -241,7 +246,7 @@ class Video:
                     #    self.reading = False
                     #    del self.myThread
                     #    exit(0)
-                
+                print "whole thing", 1/(time.time()-s)
             except Exception, e:
                 print "EXCEPTION:", e  
                 raise e
@@ -311,6 +316,6 @@ class Video:
 
         self.root.after(0, func=lambda: self.loop(image_label,image_label_lk))
         self.root.mainloop()
-        
+         
         # self.myThread = threading.Thread(target=self.root.mainloop)
         # self.myThread.start()

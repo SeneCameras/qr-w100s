@@ -27,7 +27,10 @@ def control_loop():
         
         #print "Axis 0", cntrlrdata[0], "Axis 1", cntrlrdata[1], "Axis 2", cntrlrdata[2], "Axis 3", cntrlrdata[3]
         if (not c.stop):
-            c.setThrottle(int((cntrlrdata[1]+1)*0x0080) + 0x02bf)
+            c.setThrottle(int((1 - cntrlrdata[1])*((0x05dc-0x02bf)>>1)) + 0x02bf) #Throttle Range 02bf to 05dc
+            c.setRotation(int((1 - cntrlrdata[0])*((0x0640-0x025b)>>1)) + 0x025b) #025b to 0640
+            c.setElev(int((1 - cntrlrdata[3])*((0x0640-0x025b)>>1)) + 0x025b) #025b to 0640
+            c.setAile(int((1 - cntrlrdata[2])*((0x0640-0x025b)>>1)) + 0x025b) #025b to 0640
         else:
             print cntrlrdata
         #ranging from -1 to 1
