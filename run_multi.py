@@ -10,6 +10,8 @@ from threading import Thread
 
 from vision.lk import LKProcess
 from vision.facedetect import FaceDetectProcess
+import cv2
+import numpy as np
 
 def VideoProcess():
     print "Spawning video"
@@ -23,12 +25,18 @@ def VideoProcess():
     fdq = manager.Queue()
     fdProcess = FaceDetectProcess(fdq)
     fdProcess.start()
-    time.sleep(3)
     for frame in v.frames():
+        decode = time.time()
+        i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),1)
+        print "decode time:", (time.time()-decode)*1000, "ms"
         
-        buffer = manager.Value(ctypes.c_char_p, frame)
-        lkq.put(buffer)
-        fdq.put(buffer)
+        #buffer = manager.Value(ctypes.c_char_p,  cv2.imencode(".bmp", i)[1] )
+        #buffer = manager.Value(ctypes.c_char_p, frame) 
+        #print "decode and buffer time:", (time.time()-decode)*1000, "ms"
+        
+        lkq.put(i)
+        fdq.put(i)
+        print "decode, buffer and put time:", (time.time()-decode)*1000, "ms"
         #print "new buffer put on queue, lk:", lkq.qsize(), "fd:", fdq.qsize()
         
         

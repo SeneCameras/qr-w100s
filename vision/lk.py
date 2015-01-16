@@ -27,10 +27,11 @@ class LKProcess(Process):
     def run(self):
         while self.running:
             #print "blocking until we get a buffer"
-            raw_frame = self.bufferqueue.get(True) #block until new raw_frame
+            frame = self.bufferqueue.get(True) #block until new raw_frame
             #print "buffer got"
             startd = time.time()
-            frame = cv2.imdecode(np.fromstring(raw_frame.value, dtype=np.uint8),1)
+            #frame = cv2.imdecode(np.fromstring(raw_frame.value, dtype=np.uint8),1)
+            
             #TODO: sync the decoded image instead of raw jpeg
             
             start = time.time()

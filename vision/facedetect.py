@@ -16,11 +16,11 @@ class FaceDetectProcess(Process):
 
         while self.running:
             #print "blocking until we get a buffer"
-            raw_frame = self.bufferqueue.get(True) #block until new raw_frame
+            i = self.bufferqueue.get(True) #block until new raw_frame
             #print "buffer got"
             startd = time.time()
         
-            i= cv2.imdecode(np.fromstring(raw_frame.value, dtype=np.uint8),1)
+            #i= cv2.imdecode(np.fromstring(raw_frame.value, dtype=np.uint8),1)
             start = time.time()
         
 
