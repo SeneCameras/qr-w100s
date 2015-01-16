@@ -1,9 +1,11 @@
 from vispy import gloo
 from vispy import app
+from vispy import scene
 import numpy as np
 import math
 import threading
 from walkera.video_lk import Video
+from vispy.scene.visuals import Text
 
 # Number of cols and rows in the table.
 nrows = 2
@@ -31,6 +33,8 @@ color = np.repeat(np.random.uniform(size=(m, 3), low=.5, high=.9),
 index = np.c_[np.repeat(np.repeat(np.arange(ncols), nrows), n),
               np.repeat(np.tile(np.arange(nrows), ncols), n),
               np.tile(np.arange(n), m)].astype(np.float32)
+
+
 
 VERT_SHADER = """
 #version 120
@@ -107,9 +111,9 @@ void main() {
 """
 
 
-class Canvas(app.Canvas):
+class Canvas(scene.SceneCanvas):
     def __init__(self, video=None):
-        app.Canvas.__init__(self, title='Use your wheel to zoom!',
+        scene.SceneCanvas.__init__(self, title='Use your wheel to zoom!',
                             keys='interactive')
         self.program = gloo.Program(VERT_SHADER, FRAG_SHADER)
         self.program['a_position'] = y.reshape(-1, 1)
@@ -122,7 +126,15 @@ class Canvas(app.Canvas):
         self.counter = 0
         self.video = video
 
+        # dir(gloo)
+        # t1 = Text('Text in root scene (24 pt)', parent=gloo, color='red')
+        # t1.font_size = 24
+        # t1.pos = self.size[0] // 2, self.size[1] // 3
+        # self.draw_visual(t1)
+
         self._timer = app.Timer('auto', connect=self.on_timer, start=True)
+
+
 
     def on_initialize(self, event):
         gloo.set_state(clear_color='black', blend=True,
@@ -164,11 +176,28 @@ class Canvas(app.Canvas):
         self.program.draw('line_strip')
 
     def startThread(self):
-        # self.show()
         self.myThread = threading.Thread(target=app.run())
         self.myThread.start()
 
 if __name__ == '__main__':
     c = Canvas()
+
+    vb = scene.widgets.ViewBox(parent=c.scene, border_color='b')
+    vb.pos = 0, c.size[1] // 2
+    vb.size = c.size[0], c.size[1] // 2
+    # vb.camera.rect = 0, 0, canvas.size[0], canvas.size[1] // 2
+    vb.camera.rect = 0, 0, 1, 1
+    vb.camera.rect = -200, -100, 400, 200
+    vb.camera.invert_y = False
+    # vb.clip_method = None
+    t2 = Text('Text in root scene (24 pt)', parent=vb.scene, color='red')
+    print dir(t2)
+
+    t2.font_size = 100
+    t2.pos = c.size[0] // 2, c.size[1] // 3
+    # c.draw_visual(t2)
+    # t2.draw(c.scene)
+    print dir(c.canvas_cs)
+    # print c.scene, c.size, t2
     c.show()
     app.run()
