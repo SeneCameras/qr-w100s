@@ -15,28 +15,29 @@ import numpy as np
 from interface import Interface
 
 def drawProcess(velocityq):
-    import graph
-    g = graph.Canvas()
-    g.show()
     
     while 1:
-        (deltax, deltay, roll) = velocityq.get(True)        
+        data = velocityq.get(True)
+#        print "data get:", data
+        #g.add_points(data[0],data[1])
+        deltax = data[0]
+        deltay = data[1]
+        roll = data[2]        
         g.add_points(sum(deltax)/len(deltax),sum(deltay)/len(deltay))
         
-def VideoProcess():
+def VideoProcess(lkq,velq,fdq):
     print "Spawning video"
     v = Video()
-    manager = Manager()
+    
     
     print "Video spawned"
-    lkq = manager.Queue()
-    velq = manager.Queue()
+    
     lkProcess = LKProcess(lkq, velq)
     lkProcess.start()
     
-    dp = Process(target=drawProcess, args=(velq,))
-    dp.start()
-    fdq = manager.Queue()
+    #dp = Process(target=drawProcess, args=(velq,))
+    #dp.start()
+    
     fdProcess = FaceDetectProcess(fdq)
     fdProcess.start()
     
@@ -144,5 +145,15 @@ if __name__ == '__main__':
         print e
         pass
         
+    manager = Manager()
+    lkq = manager.Queue()
+    velq = manager.Queue()
+    fdq = manager.Queue()
+    vt = Thread(target=VideoProcess, args=(lkq,velq,fdq,))
+    vt.start()
     
-    VideoProcess()
+    import graph
+    g = graph.Canvas()
+    g.show()
+    
+    drawProcess(velq)

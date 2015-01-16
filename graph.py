@@ -155,6 +155,7 @@ class Canvas(scene.SceneCanvas):
     def add_points(self,data0,data1):
         k = 5
         y[:, :-k] = y[:, k:]
+        print "data data", data0, data1
         y[0, -k:] = data0
         y[1, -k:] = data1
         
