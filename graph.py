@@ -202,13 +202,13 @@ if __name__ == '__main__':
     vb.camera.invert_y = False
     # vb.clip_method = None
     t2 = Text('Text in root scene (24 pt)', parent=vb.scene, color='red')
-    print dir(t2)
+    # print dir(t2)
 
     t2.font_size = 100
     t2.pos = c.size[0] // 2, c.size[1] // 3
     # c.draw_visual(t2)
     # t2.draw(c.scene)
-    print dir(c.canvas_cs)
+    # print dir(c.canvas_cs)
     # print c.scene, c.size, t2
     c.show()
     app.run()
