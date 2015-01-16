@@ -81,8 +81,8 @@ from inputs.joystick import Joystick
 from threading import Thread
 try:
     j = Joystick()
-    #t = Thread(target = control_loop)
-    #t.start()
+    t = Thread(target = control_loop)
+    t.start()
 except Exception, e:
     print e
     pass
