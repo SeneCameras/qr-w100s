@@ -187,7 +187,7 @@ class Canvas(scene.SceneCanvas):
         self.program.draw('line_strip')
 
     def startThread(self):
-        self.myThread = threading.Thread(target=app.run())
+        self.myThread = threading.Thread(target=app.run)
         self.myThread.start()
 
 if __name__ == '__main__':
