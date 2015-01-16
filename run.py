@@ -1,8 +1,12 @@
 from walkera.video import Video
 from walkera.control import Control
+from graph import Canvas
 import time
 v = Video()
 c = Control()
+ca = Canvas(v)
+ca.show()
+# ca.startThread()
 
 #v.setClassifier("haarcascade_frontalface_alt2.xml")
 c.startThread()

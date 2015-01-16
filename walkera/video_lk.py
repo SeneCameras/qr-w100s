@@ -41,6 +41,7 @@ class Video:
         urllib2.install_opener(self.opener)
         print 'opening url'
 
+        self.latency = 0
         self.recording = False
         self.images = []
         self.root = tk.Tk()
@@ -51,7 +52,7 @@ class Video:
 
 
     def doLK(self, frame,image_label_lk):
-        #start = time.time()
+        start = time.time()
         vis = frame.copy()
         frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         if len(self.tracks) > 0:
@@ -111,6 +112,9 @@ class Video:
             
         #    exit(0)
         #    break
+
+    def getLatency(self):
+        return self.latency
         
     def readframes(self, recv_buffer=4096, delim='\n'):
         buffer = ''
@@ -157,6 +161,7 @@ class Video:
                         
                         exit(0)
                     yield buffer
+        self.root.destroy()
         quit(0)
 
 
