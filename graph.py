@@ -132,7 +132,7 @@ class Canvas(scene.SceneCanvas):
         # t1.pos = self.size[0] // 2, self.size[1] // 3
         # self.draw_visual(t1)
 
-        self._timer = app.Timer('auto', connect=self.on_timer, start=True)
+        #self._timer = app.Timer('auto', connect=self.on_timer, start=True)
 
 
 
@@ -152,6 +152,17 @@ class Canvas(scene.SceneCanvas):
         self.program['u_scale'] = (max(1, scale_x_new), max(1, scale_y_new))
         self.update()
 
+    def add_points(self,data0,data1):
+        k = 5
+        y[:, :-k] = y[:, k:]
+        y[0, -k:] = data0
+        y[1, -k:] = data1
+        
+        self.counter+=1
+        self.program['a_position'].set_data(y.ravel().astype(np.float32))
+        self.update()
+
+    
     def on_timer(self, event):
         """Add some data at the end of each signal (real-time signals)."""
         k = 5

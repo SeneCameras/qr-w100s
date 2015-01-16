@@ -12,7 +12,17 @@ from vision.lk import LKProcess
 from vision.facedetect import FaceDetectProcess
 import cv2
 import numpy as np
+from interface import Interface
 
+def drawProcess(velocityq):
+    import graph
+    g = graph.Canvas()
+    g.show()
+    
+    while 1:
+        (deltax, deltay, roll) = velocityq.get(True)        
+        g.add_points(sum(deltax)/len(deltax),sum(deltay)/len(deltay))
+        
 def VideoProcess():
     print "Spawning video"
     v = Video()
@@ -20,15 +30,23 @@ def VideoProcess():
     
     print "Video spawned"
     lkq = manager.Queue()
-    lkProcess = LKProcess(lkq)
+    velq = manager.Queue()
+    lkProcess = LKProcess(lkq, velq)
     lkProcess.start()
+    
+    dp = Process(target=drawProcess, args=(velq,))
+    dp.start()
     fdq = manager.Queue()
     fdProcess = FaceDetectProcess(fdq)
     fdProcess.start()
+    
+    ui = Interface()
+    ui.startThread()
+    
     for frame in v.frames():
         decode = time.time()
         i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),1)
-        print "decode time:", (time.time()-decode)*1000, "ms"
+        #print "decode time:", (time.time()-decode)*1000, "ms"
         
         #buffer = manager.Value(ctypes.c_char_p,  cv2.imencode(".bmp", i)[1] )
         #buffer = manager.Value(ctypes.c_char_p, frame) 
@@ -36,7 +54,11 @@ def VideoProcess():
         
         lkq.put(i)
         fdq.put(i)
-        print "decode, buffer and put time:", (time.time()-decode)*1000, "ms"
+        
+        if ui.recording:
+            ui.record(frame)
+            
+        #print "decode, buffer and put time:", (time.time()-decode)*1000, "ms"
         #print "new buffer put on queue, lk:", lkq.qsize(), "fd:", fdq.qsize()
         
         
@@ -45,7 +67,6 @@ if __name__ == '__main__':
             
     c = Control()
     c.startThread()
-    VideoProcess()
     #v.setClassifier("haarcascade_frontalface_alt2.xml")
     #v.detectFaces = True
     
@@ -123,4 +144,5 @@ if __name__ == '__main__':
         print e
         pass
         
-   
+    
+    VideoProcess()
