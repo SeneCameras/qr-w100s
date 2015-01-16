@@ -8,24 +8,8 @@ import PIL.Image
 import PIL.ImageTk
 import os
 import tkFileDialog
-import ttk
-
-import video
-from time import clock
-
-
-
 class Video:
     def __init__(self):
-    
-    #lk setup
-        self.track_len = 10
-        self.detect_interval = 5
-        self.tracks = []
-        self.frame_idx = 0
-
-    ###
-    
         self.onkeypress = False
         self.password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
         self.detectFaces = False
@@ -43,82 +27,17 @@ class Video:
 
         self.recording = False
         self.images = []
-        self.root = tk.Tk()
-        self.notebook = ttk.Notebook(self.root)
         
     def setClassifier(self, classifierxml):
         self.frontalclassifier = cv2.CascadeClassifier(classifierxml)
-
-
-    def doLK(self, frame,image_label_lk):
-        #start = time.time()
-        vis = frame.copy()
-        frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        if len(self.tracks) > 0:
-            img0, img1 = self.prev_gray, frame_gray
-            p0 = np.float32([tr[-1] for tr in self.tracks]).reshape(-1, 1, 2)
-            p1, st, err = cv2.calcOpticalFlowPyrLK(img0, img1, p0, None, **lk_params)
-            p0r, st, err = cv2.calcOpticalFlowPyrLK(img1, img0, p1, None, **lk_params)
-            d = abs(p0-p0r).reshape(-1, 2).max(-1)
-            good = d < 1
-            new_tracks = []
-            for tr, (x, y), good_flag in zip(self.tracks, p1.reshape(-1, 2), good):
-                if not good_flag:
-                    continue
-                tr.append((x, y))
-                if len(tr) > self.track_len:
-                    del tr[0]
-                new_tracks.append(tr)
-                cv2.circle(vis, (x, y), 2, (0, 255, 0), -1)
-            self.tracks = new_tracks
-            cv2.polylines(vis, [np.int32(tr) for tr in self.tracks], False, (0, 255, 0))
-            draw_str(vis, (20, 20), 'track count: %d' % len(self.tracks))
-
-        if self.frame_idx % self.detect_interval == 0:
-            mask = np.zeros_like(frame_gray)
-            mask[:] = 255
-            for x, y in [np.int32(tr[-1]) for tr in self.tracks]:
-                cv2.circle(mask, (x, y), 5, 0, -1)
-            p = cv2.goodFeaturesToTrack(frame_gray, mask = mask, **feature_params)
-            if p is not None:
-                for x, y in np.float32(p).reshape(-1, 2):
-                    self.tracks.append([(x, y)])
-        self.frame_idx += 1
-        self.prev_gray = frame_gray
-        #end = time.time()
-        #print 'latency fps', 1/(end-start)
-        cv2.imshow('lk_track', vis)
-        
-        
-        cv2.waitKey(1)
-        ##############
-        #cv_image = cv2.cvtColor(vis, cv2.COLOR_BGR2RGB)
-        #pil_image = PIL.Image.fromarray(cv_image)
-        #tk_image = PIL.ImageTk.PhotoImage(image=pil_image)
-
-        #image_label_lk.configure(image=tk_image)
-        #image_label_lk._image_cache = tk_image  # avoid garbage collection
-        # print 'about to call self root update'
-        #self.root.update()
-        ############3
-        
-        
-        #ch = 0xFF & cv2.waitKey(1)
-        #if ch == 27:
-        #    self.reading = False
-        #    self.sock.close()
-        #    del self.myThread
-            
-        #    exit(0)
-        #    break
-        
+    
     def readframes(self, recv_buffer=4096, delim='\n'):
         buffer = ''
         data = True
         self.reading = True
         self.state = 0
         ts = 0
-  #      print ' in readframes'
+        print ' in readframes'
         while data and self.reading:
             data = self.resp.read(recv_buffer)
             buffer += data
@@ -129,19 +48,19 @@ class Video:
                     if line[0:20] == "--boundarydonotcross":
                         self.state = 1
                 elif self.state==1:
-                    # print line.split(":")
+                    #print line.split(":")
                     self.state = 2
                 elif self.state==2:
                     #print line
                     datalength = int(line.split(":")[1][1:-1])
                     self.state = 3
- #                   print "datalen", datalength
+                    #print "datalen", datalength
                     #print buffer
                 elif self.state==3:
                     self.state = 4
                     
                     timestamp = float(line.split(":")[1][1:-1])
-#                    print "timestamp:", timestamp
+                    #print "timestamp:", timestamp
                     #print "lag", timestamp - ts, 1/( timestamp - ts)
                     ts = timestamp
                 else:
@@ -149,30 +68,27 @@ class Video:
                         bytes_remaining = datalength - len(buffer)
                         data = self.resp.read(bytes_remaining)
                         buffer += data
-
                     self.state = 0
                     if self.root.quit_flag:
                         self.root.quit_flag = False
                         self.root.destroy()
-                        
                         exit(0)
                     yield buffer
         quit(0)
 
 
-    def loop(self,image_label,image_label_lk):
+    def loop(self,image_label):
         self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")
         # self.resp = open('noFaceRecognized.avi','r')
         #print resp.read(10)
         size = 0
-        #a = time.time()
+        a = time.time()
         n = 1
         avg = 0
         x = 0
 
         for frame in self.readframes():
-            x = x + 1
-            # print 'frame yielded'
+          
             #dump = open('dump/dumpframe'+str(x),'w')
             #x = x+1
             #dump.write(frame)
@@ -188,14 +104,11 @@ class Video:
             #    frame = frame[0:-20+b]
             #print a, b
             try:
-                s = time.time()
+
                 i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),1) # cv2.IMREAD_COLOR on PC = 1 = cv2.CV_LOAD_IMAGE_COLOR on mac. srsly
+                
                 #i = cv2.imdecode(np.fromstring(frame+'\xff\xd9', dtype=np.uint8),cv2.CV_LOAD_IMAGE_COLOR)
-                #if (x%5 > 2 ) and i != None:
-                self.doLK(i,image_label_lk)
-                   
-                if False and (i != None): #maybe need to drop frames...
-                    
+                if i != None:
                     # i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),cv2.IMREAD_COLOR)
                     
                     if (self.detectFaces and self.frontalclassifier):
@@ -219,29 +132,23 @@ class Video:
                         #         # print "centered"
                                 cv2.rectangle(i, (x,y), (x+w,y+h), (255,0,0))
                         #     print (x+w/2.),(y+h/2.),(w**2+h**2)**0.5
-                    
-                    ################
-                    #cv_image = cv2.cvtColor(i, cv2.COLOR_BGR2RGB)
-                    #pil_image = PIL.Image.fromarray(cv_image)
-                    #tk_image = PIL.ImageTk.PhotoImage(image=pil_image)
+                    cv_image = cv2.cvtColor(i, cv2.COLOR_BGR2RGB)
+                    pil_image = PIL.Image.fromarray(cv_image)
+                    tk_image = PIL.ImageTk.PhotoImage(image=pil_image)
                     if self.recording:
                         self.images += [i]
-                    #image_label.configure(image=tk_image)
-                    #image_label._image_cache = tk_image  # avoid garbage collection
-                    # self.notebook.update()
-                    #image_label.pack()
-                    #image_label_lk.pack()
-                    #self.root.update()
-                    #################
+                    image_label.configure(image=tk_image)
+                    image_label._image_cache = tk_image  # avoid garbage collection
+                    self.root.update()
                     
-                    #key = cv2.waitKey(1)
-                    #if (key != -1 and self.onkeypress):
-                    #    self.onkeypress(key)
-                    #if key==27:
-                    #    self.reading = False
-                    #    del self.myThread
-                    #    exit(0)
-                print "whole thing", 1/(time.time()-s)
+                    key = cv2.waitKey(1)
+                    if (key != -1 and self.onkeypress):
+                        self.onkeypress(key)
+                    if key==27:
+                        self.reading = False
+                        del self.myThread
+                        exit(0)
+                
             except Exception, e:
                 print "EXCEPTION:", e  
                 raise e
@@ -291,6 +198,7 @@ class Video:
             self.recording = True
 
     def startThread(self):
+        self.root = tk.Tk()
         def set_quit_flag():
             self.root.quit_flag = True
         self.root.bind('<Escape>', lambda e: set_quit_flag())  
@@ -298,19 +206,10 @@ class Video:
         self.root.bind("<KeyRelease-r>", lambda e: self.startRecording())
         setattr(self.root, 'quit_flag', False)    
         self.root.protocol('WM_DELETE_WINDOW', set_quit_flag)
+        image_label = tk.Label(master=self.root)  # label for the video frame
+        image_label.pack()
+        self.root.after(0, func=lambda: self.loop(image_label))
+
         
-        frame1 = ttk.Labelframe(master=self.notebook)
-        image_label = tk.Label(master=frame1)  # label for the video frame
-        self.notebook.add(frame1, text='Raw')
-
-        frame2 = ttk.Labelframe(master=self.notebook)
-        image_label_lk = tk.Label(master=frame2)  # label for the video frame
-        self.notebook.add(frame2, text='Lk')
-
-        self.notebook.pack()
-
-        self.root.after(0, func=lambda: self.loop(image_label,image_label_lk))
-        self.root.mainloop()
-         
-        # self.myThread = threading.Thread(target=self.root.mainloop)
-        # self.myThread.start()
+        self.myThread = threading.Thread(target=self.root.mainloop)
+        self.myThread.start()

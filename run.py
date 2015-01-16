@@ -1,12 +1,12 @@
-from walkera.video_lk import Video
+from walkera.video import Video
 from walkera.control import Control
 import time
 v = Video()
 c = Control()
 
-v.setClassifier("haarcascade_frontalface_alt2.xml")
+#v.setClassifier("haarcascade_frontalface_alt2.xml")
 c.startThread()
-v.detectFaces = True
+#v.detectFaces = True
 
 Upkey = 2490368
 DownKey = 2621440
@@ -47,5 +47,38 @@ def kp(key):
         c.stopDrone()
         time.sleep(.1)
         c.stopThread()
-v.setKeypress(kp)
+#v.setKeypress(kp)
+
+
+
+def control_loop():
+    while 1:
+        cntrlrdata = j.get()
+        
+        if (cntrlrdata[4] == 1):
+            
+            c.stop = False
+        if (cntrlrdata[5] == 1):
+            
+            c.stop = True
+        
+        #print "Axis 0", cntrlrdata[0], "Axis 1", cntrlrdata[1], "Axis 2", cntrlrdata[2], "Axis 3", cntrlrdata[3]
+        if (not c.stop):
+            c.setThrottle(int((1 - cntrlrdata[1])*((0x05dc-0x02bf)>>1)) + 0x02bf) #Throttle Range 02bf to 05dc
+            c.setRotation(int((1 - cntrlrdata[0])*((0x0640-0x025b)>>1)) + 0x025b) #025b to 0640
+            c.setElev(int((1 - cntrlrdata[3])*((0x0640-0x025b)>>1)) + 0x025b) #025b to 0640
+            c.setAile(int((1 - cntrlrdata[2])*((0x0640-0x025b)>>1)) + 0x025b) #025b to 0640
+        else:
+            print cntrlrdata
+        #ranging from -1 to 1
+        
 v.startThread()
+from inputs.joystick import Joystick
+from threading import Thread
+try:
+    j = Joystick()
+    #t = Thread(target = control_loop)
+    #t.start()
+except Exception, e:
+    print e
+    pass
