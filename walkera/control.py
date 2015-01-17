@@ -6,11 +6,12 @@ import sys
 import struct
 import binascii
 import time
-import threading
+from threading import Thread
 #from Tkinter import *
 
-class Control:
+class Control(Thread):
     def __init__(self):
+        Thread.__init__(self)
         self.switch = 0x61
         self.throttle = 0x02bf
         self.rotation = 0x044a
@@ -24,8 +25,7 @@ class Control:
         self.nudgez = 0
         self.nudgeyaw = 0
         
-        self.sock = socket.socket()
-        self.sock.connect(("192.168.10.1", 2001))
+
 
     def update(self):
         # data[0] = 0x61
@@ -50,8 +50,11 @@ class Control:
         
         
         
-    def loop(self):
+    def run(self):
         self.threadOn = True
+        self.sock = socket.socket()
+        self.sock.connect(("192.168.10.1", 2001))
+
         while self.threadOn:
             #data = update() 
         #key = cv2.waitKey(1)
@@ -88,9 +91,6 @@ class Control:
             #print binascii.hexlify(data)
             time.sleep(.03)        
             
-    def startThread(self):
-        self.myThread = threading.Thread(target=self.loop)
-        self.myThread.start()
         
     def stopThread(self):
         self.threadOn = False
@@ -118,6 +118,7 @@ class Control:
     def setRotation(self, val):
         self.rotation = val
         print 'rotation: ', self.rotation
+        
     def nudge(self, x, y, z, yaw, cnt = 10):
         self.cnt = self.cnt+cnt
         self.nudgex += x

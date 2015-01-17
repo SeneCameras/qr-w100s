@@ -1,10 +1,16 @@
 import Tkinter as tk
 import tkFileDialog
 import os
-import threading
+from threading import Thread
 import time
-class Interface():
-    def __init__(self):
+
+class Interface(Thread):
+    def __init__(self, video, control, joystick):
+        Thread.__init__(self)
+        self.video = video
+        self.control = control
+        self.joystick = joystick
+
         self.recording = False
         self.images = []
         self.root = tk.Tk()
@@ -14,12 +20,26 @@ class Interface():
         setattr(self.root, 'quit_flag', False)
         self.root.protocol('WM_DELETE_WINDOW', self.set_quit_flag)
         self.recordButton = tk.Button(self.root, text="Record", command= lambda: self.startRecording())
-        self.saveButton = tk.Button(self.root, text="Set Directory", command= lambda: self.askdirectory())
+        self.setdirButton = tk.Button(self.root, text="Set Directory", command= lambda: self.askdirectory())
+        self.startControl = tk.Button(self.root, text="Connect to Control", command= lambda: self.connect_control())
+        self.startVideo = tk.Button(self.root, text="Connect to Video", command= lambda: self.connect_video())
+        self.startJoyStick = tk.Button(self.root, text="Connect to Joystick", command= lambda: self.connect_joystick())
+        self.startVideoProcess = tk.Button(self.root, text="Start Video Process", command= lambda: self.start_video_process())
+        self.startAll = tk.Button(self.root, text="Start All", command= lambda: self.start_all())
+        
+        self.setdirButton.pack()
         self.recordButton.pack()
-        self.saveButton.pack()
+        self.startControl.pack()
+        self.startVideo.pack()
+        self.startJoyStick.pack()
+        self.startVideoProcess.pack()
+        self.startAll.pack()
+        
         self.x = 0
         
         self.base_directory = 'video_' 
+    def attach_video_process(self, vp):
+        self.video_process = vp
         
     def set_quit_flag(self):
         if self.root.quit_flag == False:
@@ -65,11 +85,30 @@ class Interface():
             os.makedirs(self.directory)                
             print "recording"
         
-    def startThread(self):
-        self.myThread = threading.Thread(target=self.root.mainloop)
-        self.myThread.start()
+    def run(self):
+        self.root.mainloop()
 
-
+    def connect_control(self):    
+        self.control.start()
+        
+    def connect_video(self):
+        pass
+        #self.video.start()
+        
+    def connect_joystick(self):
+        self.joystick.start()
+        
+    def start_video_process(self):
+        self.video_process.start()
+        
+    def start_all(self):
+        self.connect_control()
+        self.connect_video()
+        self.connect_joystick()
+        self.start_video_process()
+        
+        
+        
 if __name__ == "__main__":
     ui = Interface()
     ui.startThread()

@@ -4,19 +4,16 @@ class Video:
     def __init__(self):
     
        
-        self.password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-        
-        
+        self.password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()                
         self.top_level_url = "http://192.168.10.1:8080"
+        
+    def frames(self, recv_buffer=4096, delim='\n'):
         self.password_mgr.add_password(None, self.top_level_url, 'admin', 'admin123')
-
         self.handler = urllib2.HTTPBasicAuthHandler(self.password_mgr)
         self.opener = urllib2.build_opener(self.handler)
         self.opener.open("http://192.168.10.1:8080/?action=stream")
         urllib2.install_opener(self.opener)
-        print 'opening url'
-        
-    def frames(self, recv_buffer=4096, delim='\n'):
+        print 'opening video url'        
         self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")            
         buffer = ''
         data = True
