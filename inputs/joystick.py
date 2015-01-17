@@ -51,5 +51,6 @@ class Joystick(Thread):
                 self.c.setElev(int((1 - cntrlrdata[3])*((0x0640-0x025b)>>1)) + 0x025b) #025b to 0640
                 self.c.setAile(int((1 - cntrlrdata[2])*((0x0640-0x025b)>>1)) + 0x025b) #025b to 0640
             else:
-                print cntrlrdata
+                pass
+                #print cntrlrdata
     

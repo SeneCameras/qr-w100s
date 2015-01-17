@@ -105,6 +105,7 @@ class Interface(Thread):
         self.connect_control()
         self.connect_video()
         self.connect_joystick()
+        
         self.start_video_process()
         
         

@@ -26,7 +26,7 @@ def DrawProcess(velocityq):
         g.add_points(sum(deltax)/len(deltax),sum(deltay)/len(deltay))
         
 def VideoProcess(lkq,velq,fdq, ui, vid):
-    
+    print 'starting video proc'
     lkProcess = LKProcess(lkq, velq)
     lkProcess.start()
     
@@ -35,9 +35,9 @@ def VideoProcess(lkq,velq,fdq, ui, vid):
     
     fdProcess = FaceDetectProcess(fdq)
     fdProcess.start()
-    
-    for frame in v.frames():
-        
+    #print 'entering for loop'
+    for frame in vid.frames():
+        #print 'frame got'
         decode = time.time()
         i = cv2.imdecode(np.fromstring(frame, dtype=np.uint8),1)
         
@@ -55,7 +55,7 @@ def VideoProcess(lkq,velq,fdq, ui, vid):
         #print "decode, buffer and put time:", (time.time()-decode)*1000, "ms"
         #print "new buffer put on queue, lk:", lkq.qsize(), "fd:", fdq.qsize()
         
-        
+    print 'exiting video proc'    
 if __name__ == '__main__':
     mp.freeze_support()
             
