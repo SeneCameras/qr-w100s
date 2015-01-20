@@ -1,8 +1,11 @@
 import Tkinter as tk
 import tkFileDialog
 import os
+import json
 from threading import Thread
 import time
+from videoplayer import VideoPlayer
+import cv2
 
 class Interface(Thread):
     def __init__(self, video, control, joystick):
@@ -10,7 +13,7 @@ class Interface(Thread):
         self.video = video
         self.control = control
         self.joystick = joystick
-
+        self.video_player = None
         self.recording = False
         self.images = []
         self.root = tk.Tk()
@@ -26,6 +29,7 @@ class Interface(Thread):
         self.startJoyStick = tk.Button(self.root, text="Connect to Joystick", command= lambda: self.connect_joystick())
         self.startVideoProcess = tk.Button(self.root, text="Start Video Process", command= lambda: self.start_video_process())
         self.startAll = tk.Button(self.root, text="Start All", command= lambda: self.start_all())
+        self.loadVideo = tk.Button(self.root, text="Load Video", command= lambda: self.load_video())
         
         self.setdirButton.pack()
         self.recordButton.pack()
@@ -34,6 +38,7 @@ class Interface(Thread):
         self.startJoyStick.pack()
         self.startVideoProcess.pack()
         self.startAll.pack()
+        self.loadVideo.pack()
         
         self.x = 0
         
@@ -70,19 +75,31 @@ class Interface(Thread):
         #            cv2.imwrite(directory+'/image%s.jpg' % x,self.images[x])
 
     def record(self, frame):
-        
-        dump = open(self.directory+'/image%s.jpg' % self.x,'w')        
+        fn = 'im%s.jpg' % self.x
+        if (self.x > 0):            
+            self.manifest.write(",\""+fn+"\"")
+        else:
+            self.manifest.write("\""+fn+"\"")
+        #dump = open(self.directory+'/'+fn,'w')        
+        cv2.imwrite(self.directory+'/'+fn,frame)
         self.x += 1
-        dump.write(frame)
+        #dump.write(frame)
             
     def startRecording(self):
         
-        self.recording = not self.recording
-        if not self.recording:
+
+        if self.recording:
+            self.manifest.write(']')
+            self.manifest.close()
+            self.recording = False
             print "stopped"
         else:
+            self.x = 0
             self.directory = self.base_directory + '/v_'+time.strftime('%Y-%m-%d-%H-%M-%S')
-            os.makedirs(self.directory)                
+            os.makedirs(self.directory)  
+            self.manifest = open(self.directory+'/manifest.json','w')
+            self.manifest.write('[')
+            self.recording = True
             print "recording"
         
     def run(self):
@@ -92,7 +109,10 @@ class Interface(Thread):
         self.control.start()
         
     def connect_video(self):
-        pass
+        self.video_process.vid = self.video
+        
+        if self.video_player != None:
+            del self.video_player
         #self.video.start()
         
     def connect_joystick(self):
@@ -107,8 +127,22 @@ class Interface(Thread):
         self.connect_joystick()
         
         self.start_video_process()
-        
-        
+    
+    def load_video(self):
+        dir_opt = options = {}
+        options['initialdir'] = '.'#os.path.dirname(os.path.realpath(__file__))
+        options['mustexist'] = False
+        options['parent'] = self.root
+        options['title'] = 'This is a title'
+        self.base_directory = tkFileDialog.askdirectory(**dir_opt)
+        try:
+            manifest = open(self.base_directory+"/manifest.json")
+            file_list = json.loads(manifest.read())
+            self.video_player = VideoPlayer(self.base_directory, file_list)
+            self.video_process.vid = self.video_player
+        except Exception, e:
+            print e
+            pass
         
 if __name__ == "__main__":
     ui = Interface()

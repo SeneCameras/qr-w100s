@@ -21,9 +21,9 @@ class Video:
         
         print ' in readframes'
         while data and self.reading:
-            print 'recv buffer'
+            #print 'recv buffer'
             data = self.resp.read(recv_buffer)
-            print 'data'
+            #print 'data'
             buffer += data
             while buffer.find(delim) != -1:
                 line, buffer = buffer.split("\n", 1)
