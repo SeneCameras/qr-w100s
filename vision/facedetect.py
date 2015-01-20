@@ -18,6 +18,7 @@ class FaceDetectProcess(Process):
             try:
                 #print "blocking until we get a buffer"
                 i = self.bufferqueue.get(True) #block until new raw_frame
+                while i == None: i = self.bufferqueue.get(True)
                 #print "buffer got"
                 startd = time.time()
             

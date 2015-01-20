@@ -30,6 +30,7 @@ class LKProcess(Process):
             try:
                 #print "blocking until we get a buffer"
                 frame = self.bufferqueue.get(True) #block until new raw_frame
+                while frame == None: frame = self.bufferqueue.get(True)
                 #print "buffer got"
                 startd = time.time()
                 #frame = cv2.imdecode(np.fromstring(raw_frame.value, dtype=np.uint8),1)
