@@ -96,10 +96,7 @@ class VideoManagerWidget(QtGui.QWidget):
             q.put((tstamp, cv_img), False)
          except Queue.Full:
             pass
-   
-   def restart(self):
-      self.camera = cv2.VideoCapture(1)
-      
+         
    def shutdown(self):
       self.camera.release()
       
@@ -130,9 +127,6 @@ class VideoProcessorWidget(QtGui.QLabel):
          self.setPixmap(QtGui.QPixmap.fromImage(qimage))
       except Queue.Empty:
          pass
-   
-   def restart(self):
-      self._process.start()
       
    def shutdown(self):
       self._process.shutdown()
@@ -143,36 +137,14 @@ class WalkeraGUI(QtGui.QWidget):
    def __init__(self):
       super(WalkeraGUI, self).__init__()
 
-      self.subprocessing_widget_list = [] #for shutdown/restart
+      self.shutdown_list = []
 
       tabs = QtGui.QTabWidget()
       tab1 = QtGui.QWidget()
       tab1_layout = QtGui.QGridLayout()
       
-      #selector for video input type
-      src_type = QtGui.QWidget()
-      src_type_layout = QtGui.QHBoxLayout()
-      self.src_type_group = QtGui.QButtonGroup()
-      self.r0=QtGui.QRadioButton("Camera(1)")
-      self.src_type_group.addButton(self.r0, 0)
-      self.r0.clicked.connect(self.switch_src_to_camera1)
-      self.r1=QtGui.QRadioButton("Walkera Wifi (FUTURE)")
-      self.src_type_group.addButton(self.r1, 1)
-      self.r1.clicked.connect(self.switch_src_to_walkera)
-      self.r2=QtGui.QRadioButton("None")
-      self.src_type_group.addButton(self.r2, 2)
-      self.r2.clicked.connect(self.switch_src_to_none)
-      src_type_layout.addWidget(self.r0)
-      src_type_layout.addWidget(self.r1)
-      src_type_layout.addWidget(self.r2)
-      src_type.setLayout(src_type_layout)
-      self.r0.setChecked(True) #default to raw video
-      self.src_state = 0
-      
-      tab1_layout.addWidget(src_type, 0, 0)
-      
       self.vm = VideoManagerWidget()
-      self.subprocessing_widget_list.append(self.vm)
+      self.shutdown_list.append(self.vm.shutdown)
       
       self.raw_qout = multiprocessing.Queue(maxsize=1)
       self.raw_qin  = multiprocessing.Queue(maxsize=1)
@@ -181,10 +153,10 @@ class WalkeraGUI(QtGui.QWidget):
       self.raw_process = BGR2RGBProcess(self.raw_qout, self.raw_qin)
       self.raw_widget = VideoProcessorWidget(self.raw_process, self.raw_qin, q_fps=self.raw_fps_queue)
       self.raw_widget.setMaximumSize(320,240)
-      tab1_layout.addWidget(self.raw_widget, 1, 0)
-      self.subprocessing_widget_list.append(self.raw_widget)
+      tab1_layout.addWidget(self.raw_widget, 0, 0)
+      self.shutdown_list.append(self.raw_widget.shutdown)
       self.raw_plot = TimeYQueuePlotWidget(self.raw_fps_queue)
-      tab1_layout.addWidget(self.raw_plot, 2, 0)
+      tab1_layout.addWidget(self.raw_plot, 1, 0)
       
       self.lk_qout = multiprocessing.Queue(maxsize=1)
       self.lk_qin  = multiprocessing.Queue(maxsize=1)
@@ -193,10 +165,10 @@ class WalkeraGUI(QtGui.QWidget):
       self.lk_process = LKProcess(self.lk_qout, self.lk_qin)
       self.lk_widget = VideoProcessorWidget(self.lk_process, self.lk_qin, q_fps=self.lk_fps_queue)
       self.lk_widget.setMaximumSize(320,240)
-      tab1_layout.addWidget(self.lk_widget, 1, 1)
-      self.subprocessing_widget_list.append(self.lk_widget)
+      tab1_layout.addWidget(self.lk_widget, 0, 1)
+      self.shutdown_list.append(self.lk_widget.shutdown)
       self.lk_plot = TimeYQueuePlotWidget(self.lk_fps_queue)
-      tab1_layout.addWidget(self.lk_plot, 2, 1)
+      tab1_layout.addWidget(self.lk_plot, 1, 1)
       
       self.fd_qout = multiprocessing.Queue(maxsize=1)
       self.fd_qin  = multiprocessing.Queue(maxsize=1)
@@ -205,56 +177,26 @@ class WalkeraGUI(QtGui.QWidget):
       self.fd_process = FaceDetectProcess(self.fd_qout, self.fd_qin)
       self.fd_widget = VideoProcessorWidget(self.fd_process, self.fd_qin, q_fps=self.fd_fps_queue)
       self.fd_widget.setMaximumSize(320,240)
-      tab1_layout.addWidget(self.fd_widget, 1, 2)
-      self.subprocessing_widget_list.append(self.fd_widget)
+      tab1_layout.addWidget(self.fd_widget, 0, 2)
+      self.shutdown_list.append(self.fd_widget.shutdown)
       self.fd_plot = TimeYQueuePlotWidget(self.fd_fps_queue)
-      tab1_layout.addWidget(self.fd_plot, 2, 2)
+      tab1_layout.addWidget(self.fd_plot, 1, 2)
       
       tab1.setLayout(tab1_layout)
-      tabs.addTab(tab1,"CV")
-      
-      
-      tab2	= QtGui.QWidget()
-      
-      # make a row of buttons
-      tab2_layout = QtGui.QBoxLayout(QtGui.QBoxLayout.LeftToRight, self)
-      tab2.setLayout(tab2_layout)
-      tabs.addTab(tab2,"Fly")
+      tabs.addTab(tab1,"CV")        
 
       #main window layout
       window_layout = QtGui.QBoxLayout(QtGui.QBoxLayout.LeftToRight, self)        
       window_layout.addWidget(tabs)
 
-      self.setWindowTitle('Sene Cameras - QR-W100S')
+      self.setWindowTitle('Sene Cameras - QRW100S')
       self.move(50,50)
-      self.resize(1000, 550)
+      self.resize(1000, 500)
       self.setLayout(window_layout)
-   
-   def switch_src_to_camera1(self):
-      if self.src_type_group.checkedId() != self.src_state:
-         self.restart() #this does not work, so button is diasabled below
-         self.src_state = self.src_type_group.checkedId()
-   
-   def switch_src_to_walkera(self):
-      #put it back
-      if self.src_state == 0:
-         self.r0.setChecked(True)
-      if self.src_state == 2:
-         self.r2.setChecked(True)
-   
-   def switch_src_to_none(self):
-      if self.src_type_group.checkedId() != self.src_state:
-         self.shutdown()
-         self.r0.setDisabled(True)
-         self.src_state = self.src_type_group.checkedId()
-   
-   def restart(self):
-      for f in self.subprocessing_widget_list:
-         f.restart()
-         
+      
    def shutdown(self):
-      for f in self.subprocessing_widget_list:
-         f.shutdown()
+      for f in self.shutdown_list:
+         f()
 
 if __name__ == '__main__':
    app = QtGui.QApplication(sys.argv)
