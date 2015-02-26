@@ -115,6 +115,11 @@ class VideoManagerWidget(QtGui.QWidget):
    def get_images(self):
       self.get_images_FPS.update()
       hello, cv_img = self.camera.read()
+      
+      # resize to 320x240
+      if (cv_img is not None) and cv_img.data:
+         cv_img = cv2.resize(cv_img,(320,240),interpolation=cv2.INTER_NEAREST)
+      
       tstamp = datetime.datetime.now()
       for q in self.queues:
          try:
@@ -263,7 +268,7 @@ class WalkeraGUI(QtGui.QWidget):
       self.move(50,50)
       self.resize(1000, 550)
       self.setLayout(window_layout)
-   
+      
    def switch_src_to_camera1(self):
       if self.src_type_group.checkedId() != self.src_state:
          self.wake()
@@ -301,5 +306,6 @@ if __name__ == '__main__':
    app.aboutToQuit.connect(widget.shutdown)
 
    widget.show()
+
    sys.exit(app.exec_())
    
