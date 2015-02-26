@@ -79,14 +79,15 @@ class LKProcess(multiprocessing.Process):
                self.frame_idx += 1
                self.prev_gray = self.frame_gray
 
+               tstamp = datetime.datetime.now()
+               try:
+                  self.outputqueue.put((tstamp, vis), False)
+               except Queue.Full:
+                  continue
+               
             except Exception, e:
-                print "exception in lk:", e
-            
-            tstamp = datetime.datetime.now()
-            try:
-               self.outputqueue.put((tstamp, vis), False)
-            except Queue.Full:
-               continue
+               print "exception in lk:", e
+               
          except Queue.Empty:
             continue
          

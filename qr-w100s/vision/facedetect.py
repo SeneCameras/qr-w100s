@@ -1,54 +1,68 @@
+#!/usr/bin/env python
+
 from common import anorm2, draw_str
-import cv2
 import time
 import numpy as np
-from multiprocessing import Process
 
+import cv2
+import multiprocessing
+import Queue #needed separately for the Empty exception
+import datetime
 
-class FaceDetectProcess(Process):
-    def __init__(self, bufferqueue):
-        Process.__init__(self)
-        self.bufferqueue = bufferqueue
-        self.running = True
-        self.DOWNSCALE = 4
-    def run(self):
-        self.frontalclassifier = cv2.CascadeClassifier("haarcascade_frontalface_alt2.xml")
+import sys,os
 
-        while self.running:
+class FaceDetectProcess(multiprocessing.Process):
+   def __init__(self, inputqueue, outputqueue):
+      multiprocessing.Process.__init__(self)
+      self.inputqueue = inputqueue
+      self.outputqueue = outputqueue
+      self.exit = multiprocessing.Event()
+
+   def run(self):      
+      # this takes a long time, so clear the queue afterwards
+      filepath = os.path.abspath(os.path.join(os.path.dirname(__file__), "haarcascades","haarcascade_frontalface_alt2.xml"))
+      self.face_cascade = cv2.CascadeClassifier(filepath)
+      filepath = os.path.abspath(os.path.join(os.path.dirname(__file__), "haarcascades","haarcascade_mcs_eyepair_big.xml"))
+      self.eye_cascade  = cv2.CascadeClassifier(filepath)
+      while(True):
+         try:
+            tstamp, cv_img = self.inputqueue.get(False)
+         except Queue.Empty:
+            break
+      
+      while not self.exit.is_set():
+         try:
+            tstamp, cv_img = self.inputqueue.get(False)
             try:
-                #print "blocking until we get a buffer"
-                i = self.bufferqueue.get(True) #block until new raw_frame
-                while i == None: i = self.bufferqueue.get(True)
-                #print "buffer got"
-                startd = time.time()
-            
-                #i= cv2.imdecode(np.fromstring(raw_frame.value, dtype=np.uint8),1)
-                start = time.time()
-            
+               gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+               vis = gray.copy()
+               vis = cv2.cvtColor(vis, cv2.COLOR_GRAY2RGB)
 
-                minisize = (i.shape[1]/self.DOWNSCALE,i.shape[0]/self.DOWNSCALE)
-                miniframe = cv2.resize(i, minisize)
-                frontalfaces = self.frontalclassifier.detectMultiScale(miniframe)
-                for f in frontalfaces:
-                    x, y, w, h = [ v*self.DOWNSCALE for v in f ]
-                #     # draws bounding box
-                    cv2.rectangle(i, (x,y), (x+w,y+h), (0,0,255))
-                if len(frontalfaces) >= 1:
-                    x, y, w, h = [ v*self.DOWNSCALE for v in frontalfaces[0] ]
-                    if i.shape[1]*(2/3.) < x+w/2:# too far right
-                        cv2.rectangle(i, (x,y), (x+w,y+h), (0,0,255))
-                #         # print "turn counterclockwise"
-                    elif i.shape[1]*(1/3.) > x+w/2: # too far left
-                #         # print "turn clockwise"
-                        cv2.rectangle(i, (x,y), (x+w,y+h), (0,255,0))
-                    else: # centered
-                #         # print "centered"
-                        cv2.rectangle(i, (x,y), (x+w,y+h), (255,0,0))
-                #     print (x+w/2.),(y+h/2.),(w**2+h**2)**0.5
-                end = time.time()
-                #print 'fd latency', (end-start)*1000, 'ms', (end-startd)*1000, 'ms'
-                
-                cv2.imshow('face_detect', i)
-                key = cv2.waitKey(1)
+               faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
+               
+               for (x,y,w,h) in faces: 
+                  cv2.rectangle(vis,(x,y),(x+w,y+h),(255,0,0),2)
+                  
+                  roi_gray = gray[y:y+h, x:x+w]
+                  roi_color = vis[y:y+h, x:x+w]
+                  eyes = self.eye_cascade.detectMultiScale(roi_gray)
+                  for (ex,ey,ew,eh) in eyes:
+                     cv2.rectangle(roi_color,(ex,ey),(ex+ew,ey+eh),(0,255,0),2)
+               
+               tstamp = datetime.datetime.now()
+               try:
+                  self.outputqueue.put((tstamp, vis), False)
+               except Queue.Full:
+                  continue
+               
             except Exception, e:
-                print e
+               print "exception in fd:", e
+
+         except Queue.Empty:
+            continue
+
+   def shutdown(self):
+      self.exit.set()
+
+
+

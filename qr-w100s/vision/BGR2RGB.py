@@ -24,6 +24,7 @@ class BGR2RGBProcess(multiprocessing.Process):
                continue
          except Queue.Empty:
             continue
+
    def shutdown(self):
       self.exit.set()
 

@@ -10,6 +10,7 @@ import Queue #needed separately for the Empty exception
 
 from vision.BGR2RGB import BGR2RGBProcess
 from vision.lk import LKProcess
+from vision.facedetect import FaceDetectProcess
 
 import numpy as np
 import pyqtgraph as pg
@@ -33,7 +34,7 @@ class TimeYQueuePlotWidget(pg.PlotWidget):
       self.setLabel('left', 'FPS', units='Hz')
       self.setLabel('bottom', 'Time', units='s')
       self.setXRange(0, 20)
-      self.setYRange(0, 40)
+      self.setYRange(0, 15)
       
    def update(self):
       self.update_FPS.update()
@@ -104,7 +105,6 @@ class VideoProcessorWidget(QtGui.QLabel):
    def __init__(self, process, q, q_fps=None, target_FPS = 30.0):
       super(VideoProcessorWidget, self).__init__()
       self.setScaledContents(True)
-      
       self.draw_images_t = QtCore.QTimer()
       self.draw_images_t.timeout.connect(self.draw_images)
       self.draw_images_t.start(1000.0/target_FPS)
@@ -114,10 +114,9 @@ class VideoProcessorWidget(QtGui.QLabel):
       self._process.start()
       
    def draw_images(self):
-      self.draw_images_FPS.update()
-      #self.draw_images_FPS.log()
       try:
          tstamp, cv_img = self._q.get(False)
+         self.draw_images_FPS.update() #only count when we get a frame!
          if len(cv_img.shape) > 2:
             height, width, bytesPerComponent = cv_img.shape
             bytesPerLine = bytesPerComponent * width;
@@ -147,30 +146,41 @@ class WalkeraGUI(QtGui.QWidget):
       self.vm = VideoManagerWidget()
       self.shutdown_list.append(self.vm.shutdown)
       
-      self.raw_qout = multiprocessing.Queue(maxsize=10)
-      self.raw_qin  = multiprocessing.Queue(maxsize=10)
-      self.raw_fps_queue  = multiprocessing.Queue(maxsize=10)
+      self.raw_qout = multiprocessing.Queue(maxsize=1)
+      self.raw_qin  = multiprocessing.Queue(maxsize=1)
+      self.raw_fps_queue  = multiprocessing.Queue(maxsize=1)
       self.vm.append(self.raw_qout) #put cam frames out for raw processing
       self.raw_process = BGR2RGBProcess(self.raw_qout, self.raw_qin)
       self.raw_widget = VideoProcessorWidget(self.raw_process, self.raw_qin, q_fps=self.raw_fps_queue)
+      self.raw_widget.setMaximumSize(320,240)
       tab1_layout.addWidget(self.raw_widget, 0, 0)
       self.shutdown_list.append(self.raw_widget.shutdown)
-      
       self.raw_plot = TimeYQueuePlotWidget(self.raw_fps_queue)
       tab1_layout.addWidget(self.raw_plot, 1, 0)
       
-      
-      self.lk_qout = multiprocessing.Queue(maxsize=10)
-      self.lk_qin  = multiprocessing.Queue(maxsize=10)
-      self.lk_fps_queue  = multiprocessing.Queue(maxsize=10)
+      self.lk_qout = multiprocessing.Queue(maxsize=1)
+      self.lk_qin  = multiprocessing.Queue(maxsize=1)
+      self.lk_fps_queue  = multiprocessing.Queue(maxsize=1)
       self.vm.append(self.lk_qout) #put cam frames out for raw processing
       self.lk_process = LKProcess(self.lk_qout, self.lk_qin)
       self.lk_widget = VideoProcessorWidget(self.lk_process, self.lk_qin, q_fps=self.lk_fps_queue)
+      self.lk_widget.setMaximumSize(320,240)
       tab1_layout.addWidget(self.lk_widget, 0, 1)
       self.shutdown_list.append(self.lk_widget.shutdown)
-            
       self.lk_plot = TimeYQueuePlotWidget(self.lk_fps_queue)
       tab1_layout.addWidget(self.lk_plot, 1, 1)
+      
+      self.fd_qout = multiprocessing.Queue(maxsize=1)
+      self.fd_qin  = multiprocessing.Queue(maxsize=1)
+      self.fd_fps_queue  = multiprocessing.Queue(maxsize=1)
+      self.vm.append(self.fd_qout) #put cam frames out for raw processing
+      self.fd_process = FaceDetectProcess(self.fd_qout, self.fd_qin)
+      self.fd_widget = VideoProcessorWidget(self.fd_process, self.fd_qin, q_fps=self.fd_fps_queue)
+      self.fd_widget.setMaximumSize(320,240)
+      tab1_layout.addWidget(self.fd_widget, 0, 2)
+      self.shutdown_list.append(self.fd_widget.shutdown)
+      self.fd_plot = TimeYQueuePlotWidget(self.fd_fps_queue)
+      tab1_layout.addWidget(self.fd_plot, 1, 2)
       
       tab1.setLayout(tab1_layout)
       tabs.addTab(tab1,"CV")        
@@ -181,7 +191,7 @@ class WalkeraGUI(QtGui.QWidget):
 
       self.setWindowTitle('Sene Cameras - QRW100S')
       self.move(50,50)
-      self.resize(1200, 700)
+      self.resize(1000, 500)
       self.setLayout(window_layout)
       
    def shutdown(self):
