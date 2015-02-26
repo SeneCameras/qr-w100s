@@ -33,15 +33,18 @@ class FaceDetectProcess(multiprocessing.Process):
       while not self.exit.is_set():
                   
          if self.sleeping.is_set():
-            time.sleep(1)
+            time.sleep(0.1)
             continue
          
          try:
             tstamp, cv_img = self.inputqueue.get(False)
             try:
-               gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
-               vis = gray.copy()
-               vis = cv2.cvtColor(vis, cv2.COLOR_GRAY2RGB)
+               if (cv_img is not None) and cv_img.data:
+                  gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+                  vis = gray.copy()
+                  vis = cv2.cvtColor(vis, cv2.COLOR_GRAY2RGB)
+               else:
+                  continue
 
                faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
                

@@ -37,7 +37,7 @@ class LKProcess(multiprocessing.Process):
       while not self.exit.is_set():
          
          if self.sleeping.is_set():
-            time.sleep(1)
+            time.sleep(0.1)
             continue
          
          try:
@@ -45,10 +45,12 @@ class LKProcess(multiprocessing.Process):
             
             try:
                
-               self.frame_gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
-               
-               vis = self.frame_gray.copy()
-               vis = cv2.cvtColor(vis, cv2.COLOR_GRAY2RGB)
+               if (cv_img is not None) and cv_img.data:
+                  self.frame_gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+                  vis = self.frame_gray.copy()
+                  vis = cv2.cvtColor(vis, cv2.COLOR_GRAY2RGB)
+               else:
+                  continue
                
                if len(self.tracks) > 0:
                   img0, img1 = self.prev_gray, self.frame_gray

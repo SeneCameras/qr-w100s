@@ -17,15 +17,19 @@ class BGR2RGBProcess(multiprocessing.Process):
       while not self.exit.is_set():
          
          if self.sleeping.is_set():
-            time.sleep(1)
+            time.sleep(0.1)
             continue
          
          try:
             tstamp, cv_img = self.inputqueue.get(False)
-            cv_img = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB, cv_img)
+            
+            if (cv_img is not None) and cv_img.data:
+                  vis = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
+            else:
+               continue
             tstamp = datetime.datetime.now()
             try:
-               self.outputqueue.put((tstamp, cv_img), False)
+               self.outputqueue.put((tstamp, vis), False)
             except Queue.Full:
                continue
          except Queue.Empty:

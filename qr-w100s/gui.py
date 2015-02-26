@@ -34,18 +34,35 @@ class TimeYQueuePlotWidget(pg.PlotWidget):
       self.setLabel('left', 'FPS', units='Hz')
       self.setLabel('bottom', 'Time', units='s')
       self.setXRange(0, 20)
-      self.setYRange(0, 15)
+      self.setYRange(0, 30)
       
    def update(self):
-      self.update_FPS.update()
-      #self.update_FPS.log()
       try:
          tstamp, y = self.q.get(False)
+         self.update_FPS.update()
          self.xvals.append( (tstamp - self.start).total_seconds() )
          self.yvals.append(y)
          self.p0.setData(y=self.yvals, x=self.xvals)
       except Queue.Empty:
          pass
+      
+   def idle(self):
+      pass
+   
+   def sleep(self):
+      self.update_t.timeout.connect(self.idle)
+      
+   def wake(self):
+      self.update_FPS.reset()
+      self.start = datetime.datetime.now()
+      time.sleep(0.001)
+      self.update_FPS.update()
+      self.xvals = []
+      self.yvals = []
+      self.update_t.timeout.connect(self.update)
+      
+   def shutdown(self):
+      pass
 
 # iir filter on instantaneous frames per second
 class fps():
@@ -65,6 +82,15 @@ class fps():
             self.q.put((self.prev, self.FPS), False)
          except Queue.Full:
             pass
+   def reset(self):
+      self.prev = datetime.datetime.now()
+      # try to clear the queue
+      if self.q:
+         try:
+            tstamp, y = self.q.get(False)
+         except Queue.Empty:
+            pass
+      time.sleep(0.001) #some laziness here to avoid div/0
    def log(self, label=""):
       print "%s %6.3f FPS" % (label, self.FPS)
       sys.stdout.flush()
@@ -88,7 +114,6 @@ class VideoManagerWidget(QtGui.QWidget):
       
    def get_images(self):
       self.get_images_FPS.update()
-      #self.get_images_FPS.log()
       hello, cv_img = self.camera.read()
       tstamp = datetime.datetime.now()
       for q in self.queues:
@@ -190,6 +215,7 @@ class WalkeraGUI(QtGui.QWidget):
       tab1_layout.addWidget(self.raw_widget, 1, 0)
       self.subprocessing_widget_list.append(self.raw_widget)
       self.raw_plot = TimeYQueuePlotWidget(self.raw_fps_queue)
+      self.subprocessing_widget_list.append(self.raw_plot)
       tab1_layout.addWidget(self.raw_plot, 2, 0)
       
       self.lk_qout = multiprocessing.Queue(maxsize=1)
@@ -202,6 +228,7 @@ class WalkeraGUI(QtGui.QWidget):
       tab1_layout.addWidget(self.lk_widget, 1, 1)
       self.subprocessing_widget_list.append(self.lk_widget)
       self.lk_plot = TimeYQueuePlotWidget(self.lk_fps_queue)
+      self.subprocessing_widget_list.append(self.lk_plot)
       tab1_layout.addWidget(self.lk_plot, 2, 1)
       
       self.fd_qout = multiprocessing.Queue(maxsize=1)
@@ -214,6 +241,7 @@ class WalkeraGUI(QtGui.QWidget):
       tab1_layout.addWidget(self.fd_widget, 1, 2)
       self.subprocessing_widget_list.append(self.fd_widget)
       self.fd_plot = TimeYQueuePlotWidget(self.fd_fps_queue)
+      self.subprocessing_widget_list.append(self.fd_plot)
       tab1_layout.addWidget(self.fd_plot, 2, 2)
       
       tab1.setLayout(tab1_layout)
