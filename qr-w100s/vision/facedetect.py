@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 
 from common import anorm2, draw_str
-import time
 import numpy as np
 
 import cv2
 import multiprocessing
 import Queue #needed separately for the Empty exception
-import datetime
+import time, datetime
 
 import sys,os
 
@@ -17,6 +16,7 @@ class FaceDetectProcess(multiprocessing.Process):
       self.inputqueue = inputqueue
       self.outputqueue = outputqueue
       self.exit = multiprocessing.Event()
+      self.sleeping = multiprocessing.Event()
 
    def run(self):      
       # this takes a long time, so clear the queue afterwards
@@ -31,6 +31,11 @@ class FaceDetectProcess(multiprocessing.Process):
             break
       
       while not self.exit.is_set():
+                  
+         if self.sleeping.is_set():
+            time.sleep(1)
+            continue
+         
          try:
             tstamp, cv_img = self.inputqueue.get(False)
             try:
@@ -63,6 +68,11 @@ class FaceDetectProcess(multiprocessing.Process):
 
    def shutdown(self):
       self.exit.set()
-
+      
+   def sleep(self):
+      self.sleeping.set()
+      
+   def wake(self):
+      self.sleeping.clear()
 
 

@@ -3,7 +3,7 @@
 import cv2
 import multiprocessing
 import Queue #needed separately for the Empty exception
-import datetime
+import time, datetime
 
 class BGR2RGBProcess(multiprocessing.Process):
    def __init__(self, inputqueue, outputqueue):
@@ -11,9 +11,15 @@ class BGR2RGBProcess(multiprocessing.Process):
       self.inputqueue = inputqueue
       self.outputqueue = outputqueue
       self.exit = multiprocessing.Event()
+      self.sleeping = multiprocessing.Event()
 
    def run(self):
       while not self.exit.is_set():
+         
+         if self.sleeping.is_set():
+            time.sleep(1)
+            continue
+         
          try:
             tstamp, cv_img = self.inputqueue.get(False)
             cv_img = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB, cv_img)
@@ -27,4 +33,9 @@ class BGR2RGBProcess(multiprocessing.Process):
 
    def shutdown(self):
       self.exit.set()
-
+      
+   def sleep(self):
+      self.sleeping.set()
+      
+   def wake(self):
+      self.sleeping.clear()

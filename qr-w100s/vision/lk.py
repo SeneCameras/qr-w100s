@@ -24,6 +24,7 @@ class LKProcess(multiprocessing.Process):
       self.inputqueue = inputqueue
       self.outputqueue = outputqueue
       self.exit = multiprocessing.Event()
+      self.sleeping = multiprocessing.Event()
    
       self.track_len = 10
       self.detect_interval = 5
@@ -34,6 +35,11 @@ class LKProcess(multiprocessing.Process):
 
    def run(self):
       while not self.exit.is_set():
+         
+         if self.sleeping.is_set():
+            time.sleep(1)
+            continue
+         
          try:
             tstamp, cv_img = self.inputqueue.get(False)
             
@@ -93,3 +99,9 @@ class LKProcess(multiprocessing.Process):
          
    def shutdown(self):
       self.exit.set()
+      
+   def sleep(self):
+      self.sleeping.set()
+      
+   def wake(self):
+      self.sleeping.clear()

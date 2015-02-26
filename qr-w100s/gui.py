@@ -96,10 +96,13 @@ class VideoManagerWidget(QtGui.QWidget):
             q.put((tstamp, cv_img), False)
          except Queue.Full:
             pass
-   
-   def restart(self):
-      self.camera = cv2.VideoCapture(1)
       
+   def sleep(self):
+      self.camera.release()
+   
+   def wake(self):
+      self.camera = cv2.VideoCapture(1)
+
    def shutdown(self):
       self.camera.release()
       
@@ -131,8 +134,11 @@ class VideoProcessorWidget(QtGui.QLabel):
       except Queue.Empty:
          pass
    
-   def restart(self):
-      self._process.start()
+   def sleep(self):
+      self._process.sleep()
+   
+   def wake(self):
+      self._process.wake()
       
    def shutdown(self):
       self._process.shutdown()
@@ -232,11 +238,11 @@ class WalkeraGUI(QtGui.QWidget):
    
    def switch_src_to_camera1(self):
       if self.src_type_group.checkedId() != self.src_state:
-         self.restart() #this does not work, so button is diasabled below
+         self.wake()
          self.src_state = self.src_type_group.checkedId()
    
    def switch_src_to_walkera(self):
-      #put it back
+      #put it back for now
       if self.src_state == 0:
          self.r0.setChecked(True)
       if self.src_state == 2:
@@ -244,13 +250,16 @@ class WalkeraGUI(QtGui.QWidget):
    
    def switch_src_to_none(self):
       if self.src_type_group.checkedId() != self.src_state:
-         self.shutdown()
-         self.r0.setDisabled(True)
+         self.sleep()
          self.src_state = self.src_type_group.checkedId()
    
-   def restart(self):
+   def sleep(self):
       for f in self.subprocessing_widget_list:
-         f.restart()
+         f.sleep()
+   
+   def wake(self):
+      for f in self.subprocessing_widget_list:
+         f.wake()
          
    def shutdown(self):
       for f in self.subprocessing_widget_list:
