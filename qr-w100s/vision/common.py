@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-This module contains some common routines used by other samples.
+This module contains some common routines used by cv2 samples and an abstract multiprocessing class
 '''
 
 import numpy as np
@@ -11,6 +11,68 @@ import cv2
 import os
 import itertools as it
 from contextlib import contextmanager
+
+
+import multiprocessing
+import Queue #needed separately for the Empty exception
+import time, datetime
+
+# A sleepable multiprocessing.Process
+
+class SleepableCVProcess(multiprocessing.Process):
+   def __init__(self, inputqueue, outputqueue):
+      multiprocessing.Process.__init__(self)
+      self.inputqueue = inputqueue
+      self.outputqueue = outputqueue
+      self.exit = multiprocessing.Event()
+      self.sleeping = multiprocessing.Event()
+      
+   def run(self):
+      
+      self.setup()
+      
+      while not self.exit.is_set():
+         
+         if self.sleeping.is_set():
+            time.sleep(0.1)
+            continue
+         
+         try:
+            tstamp, cv_img = self.inputqueue.get(False)
+            
+            if (cv_img is not None) and cv_img.data:
+               vis = self.doWork(cv_img)
+            else:
+               continue
+            
+            tstamp = datetime.datetime.now()
+            try:
+               self.outputqueue.put((tstamp, vis), False)
+            except Queue.Full:
+               continue
+         except Queue.Empty:
+            continue
+         
+   #override with actual work to be done (cv_img ---> visualization_img)
+   def setup(self):
+      pass
+   
+   #override with actual work to be done (cv_img ---> visualization_img)
+   def doWork(self, cv_img):
+      return cv_img
+   
+   def isAwake(self):
+      return not self.sleeping.is_set()
+
+   def shutdown(self):
+      self.exit.set()
+      
+   def sleep(self):
+      self.sleeping.set()
+      
+   def wake(self):
+      self.sleeping.clear()
+
 
 image_extensions = ['.bmp', '.jpg', '.jpeg', '.png', '.tif', '.tiff', '.pbm', '.pgm', '.ppm']
 
