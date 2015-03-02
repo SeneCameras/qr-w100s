@@ -28,7 +28,7 @@ class JoystickProcess(multiprocessing.Process):
          pygame.init()
          self.j = pygame.joystick.Joystick(0)
          self.j.init()
-         print 'Found: ', self.j.get_name()
+         print 'Found Joystick: ', self.j.get_name()
          sys.stdout.flush()
          
       except Exception, e:

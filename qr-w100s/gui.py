@@ -33,8 +33,13 @@ class ProcessorWidget(QtGui.QWidget):
       super(ProcessorWidget, self).__init__()
       self.process_class = process_class
       self.managed_objects = []
-   def start(self, input_queue, output_queue):
-      self.process = self.process_class(input_queue, output_queue)
+   def start(self, input_queue = None, output_queue = None):
+      if (output_queue is not None) and (input_queue is not None):
+         self.process = self.process_class(input_queue, output_queue)
+      elif (output_queue is not None):
+         self.process = self.process_class(output_queue)
+      else:
+         self.process = self.process_class()
       self.process.start()
       self.managed_objects.append(self.process)
    def manageSleepableWidget(self, w):
@@ -101,7 +106,7 @@ class VideoProcessorWidget(ProcessorWidget):
       
       self.process_input_queue   = multiprocessing.Queue(maxsize=1)
       self.process_output_queue  = multiprocessing.Queue(maxsize=1)
-      self.start(self.process_input_queue, self.process_output_queue)
+      self.start( input_queue = self.process_input_queue, output_queue = self.process_output_queue)
 
       layout = QtGui.QGridLayout()
 
@@ -116,13 +121,13 @@ class VideoProcessorWidget(ProcessorWidget):
       self.pixmap.setScaledContents(True)
       layout.addWidget(self.pixmap, 1, 0)
       
-      self.plot = None
+      self.fps_plot = None
       if FPS_plot:
          self.fps_queue  = multiprocessing.Queue(maxsize=1)
          self.FPS = fps(log_queue = self.fps_queue)
-         self.plot = TimeYQueuePlotWidget(self.fps_queue)
-         self.manageSleepableWidget(self.plot)
-         layout.addWidget(self.plot, 2, 0)
+         self.fps_plot = TimeYQueuePlotWidget(self.fps_queue)
+         self.manageSleepableWidget(self.fps_plot)
+         layout.addWidget(self.fps_plot, 2, 0)
          
       self.setLayout(layout)
       
@@ -141,7 +146,7 @@ class VideoProcessorWidget(ProcessorWidget):
    def drawImage(self):
       try:
          tstamp, cv_img = self.process_output_queue.get(False)
-         if self.plot is not None:
+         if self.fps_plot is not None:
             self.FPS.update() #only count when we successfully get a frame!
          if len(cv_img.shape) > 2:
             height, width, bytesPerComponent = cv_img.shape
@@ -243,7 +248,6 @@ class TimeYQueuePlotWidget(pg.PlotWidget):
       self.update_t = QtCore.QTimer()
       self.update_t.timeout.connect(self.update)
       self.update_t.start(1000.0/target_FPS)
-      self.update_FPS = fps()
       
       self.p0 = self.plot()
       self.p0.setPen((200,200,100))
@@ -257,7 +261,6 @@ class TimeYQueuePlotWidget(pg.PlotWidget):
    def update(self):
       try:
          tstamp, y = self.q.get(False)
-         self.update_FPS.update()
          self.xvals.append( (tstamp - self.start).total_seconds() )
          self.yvals.append(y)
          self.p0.setData(y=self.yvals, x=self.xvals)
@@ -275,10 +278,7 @@ class TimeYQueuePlotWidget(pg.PlotWidget):
       self.awake = False
       
    def wake(self):
-      self.update_FPS.reset()
       self.start = datetime.datetime.now()
-      time.sleep(0.001)
-      self.update_FPS.update()
       self.xvals = []
       self.yvals = []
       self.update_t.timeout.connect(self.update)
@@ -286,6 +286,103 @@ class TimeYQueuePlotWidget(pg.PlotWidget):
 
    def shutdown(self):
       pass
+
+# connects Joystick controls to drone flight vectors
+class FlightControlWidget(ProcessorWidget):
+   def __init__(self, target_FPS = 60.0):
+      self.process_class = JoystickProcess;
+      super(FlightControlWidget, self).__init__(self.process_class)
+      
+      self.joystick_process_output_queue  = multiprocessing.Queue(maxsize=1)
+      self.start( input_queue = None, output_queue = self.joystick_process_output_queue)
+
+      self.plot_x_size = 430
+      self.plot_y_size = 240
+
+      layout = QtGui.QGridLayout()
+
+      self.thrust_label = QtGui.QLabel()
+      self.thrust_label.setText("Thrust")
+      layout.addWidget(self.thrust_label, 0, 0)
+      
+      self.thrust_queue = Queue.Queue(maxsize=1)
+      self.thrust_widget = TimeYQueuePlotWidget(self.thrust_queue)
+      self.manageSleepableWidget(self.thrust_widget)
+      self.thrust_widget.setMaximumSize(self.plot_x_size,self.plot_y_size)
+      self.thrust_widget.setYRange(-1, 1)
+      self.thrust_widget.setLabel('left', 'Setpoint', units='au')
+      layout.addWidget(self.thrust_widget, 1, 0)
+      
+      self.yaw_label = QtGui.QLabel()
+      self.yaw_label.setText("Yaw")
+      layout.addWidget(self.yaw_label, 2, 0)
+      
+      self.yaw_queue = Queue.Queue(maxsize=1)
+      self.yaw_widget = TimeYQueuePlotWidget(self.yaw_queue)
+      self.manageSleepableWidget(self.yaw_widget)
+      self.yaw_widget.setMaximumSize(self.plot_x_size,self.plot_y_size)
+      self.yaw_widget.setYRange(-1, 1)
+      self.yaw_widget.setLabel('left', 'Setpoint', units='au')
+      layout.addWidget(self.yaw_widget, 3, 0)
+
+      self.pitch_label = QtGui.QLabel()
+      self.pitch_label.setText("Pitch")
+      layout.addWidget(self.pitch_label, 0, 1)
+      
+      self.pitch_queue = Queue.Queue(maxsize=1)
+      self.pitch_widget = TimeYQueuePlotWidget(self.pitch_queue)
+      self.manageSleepableWidget(self.pitch_widget)
+      self.pitch_widget.setMaximumSize(self.plot_x_size,self.plot_y_size)
+      self.pitch_widget.setYRange(-1, 1)
+      self.pitch_widget.setLabel('left', 'Setpoint', units='au')
+      layout.addWidget(self.pitch_widget, 1, 1)
+      
+      self.roll_label = QtGui.QLabel()
+      self.roll_label.setText("Roll")
+      layout.addWidget(self.roll_label, 2, 1)
+      
+      self.roll_queue = Queue.Queue(maxsize=1)
+      self.roll_widget = TimeYQueuePlotWidget(self.roll_queue)
+      self.manageSleepableWidget(self.roll_widget)
+      self.roll_widget.setMaximumSize(self.plot_x_size,self.plot_y_size)
+      self.roll_widget.setYRange(-1, 1)
+      self.roll_widget.setLabel('left', 'Setpoint', units='au')
+      layout.addWidget(self.roll_widget, 3, 1)
+
+      self.setLayout(layout)
+      
+      self.get_joystick_inputs = QtCore.QTimer()
+      self.get_joystick_inputs.timeout.connect(self.getJoystickInput)
+      self.get_joystick_inputs.start(1000.0/target_FPS)
+   
+   def getJoystickInput(self):
+      try:
+         tstamp, data = self.joystick_process_output_queue.get(False)
+         
+         if (data is not None):
+            try:
+               self.thrust_queue.put((tstamp, data[1]), False)
+            except Queue.Full:
+               pass
+
+            try:
+               self.pitch_queue.put((tstamp, data[3]), False)
+            except Queue.Full:
+               pass
+
+            try:
+               self.roll_queue.put((tstamp, data[2]), False)
+            except Queue.Full:
+               pass
+
+            try:
+               self.yaw_queue.put((tstamp, data[0]), False)
+            except Queue.Full:
+               pass
+         
+      except Queue.Empty:
+         pass
+
 
 class WalkeraGUI(QtGui.QWidget):
    def __init__(self):
@@ -322,7 +419,6 @@ class WalkeraGUI(QtGui.QWidget):
       self.objects_to_shutdown_at_quit.append(self.flight_control_widget)
       tabs.addTab(self.flight_control_widget, "Flight Controls")
       
-      
       #main window layout
       window_layout = QtGui.QHBoxLayout()
       window_layout.addWidget(tabs)
@@ -335,85 +431,6 @@ class WalkeraGUI(QtGui.QWidget):
    def shutdown(self):
       for o in self.objects_to_shutdown_at_quit:
          o.shutdown()
-
-
-# a class to manage a PID controller with nice plotting
-class ControlWidget(QtGui.QWidget):
-   def __init__(self, textlabel = "Controller", minval = 0.0, maxval = 1.0):
-      super(ControlWidget, self).__init__()
-      
-      self._minval = minval
-      self._maxval = maxval
-      
-      self.label_widget = QtGui.QLabel()
-      self.label_widget.setText(textlabel)
-      
-      self.history_plot_q  = multiprocessing.Queue(maxsize=1)
-      self.history_plot_widget = TimeYQueuePlotWidget(self.history_plot_q)
-      self.history_plot_widget.setMaximumSize(300,240)
-      self.history_plot_widget.setYRange(self._minval, self._maxval)
-      self.history_plot_widget.setLabel('left', 'Setpoint', units='au')
-      
-      self.bar_plot_widget = pg.PlotWidget()
-      self.bar_plot_widget.setMaximumSize(100,240)
-      self.bar_plot_widget.hideAxis('bottom')
-      self.bar_plot_widget.setXRange(-0.5, 0.5)
-      self.bar_plot_widget.setYRange(self._minval, self._maxval)
-      
-      x = [0]
-      y = [1.0] #power
-      self.bg = pg.BarGraphItem(x=x, height=y, width=0.3, brush='r')
-      self.bar_plot_widget.addItem(self.bg)
-            
-      layout = QtGui.QGridLayout()
-      layout.addWidget(self.label_widget, 0, 0, 1, 2)
-      layout.addWidget(self.history_plot_widget, 1, 0)
-      layout.addWidget(self.bar_plot_widget, 1, 1)
-      
-      self.setLayout(layout)
-
-# converts Joystick controls to four drone flight vectors
-class FlightControlWidget(QtGui.QWidget):
-   def __init__(self, target_FPS = 60.0):
-      super(FlightControlWidget, self).__init__()
-      self.process_output_queue = multiprocessing.Queue(maxsize=1)
-      self.process = JoystickProcess(self.process_output_queue)
-      self.process.start()
-
-      self.get_joystick_inputs = QtCore.QTimer()
-      self.get_joystick_inputs.timeout.connect(self.getJoystickInput)
-      self.get_joystick_inputs.start(1000.0/target_FPS)
-      
-      layout = QtGui.QGridLayout()
-      self.thrustwidget = ControlWidget(textlabel="thrust")
-      layout.addWidget(self.thrustwidget, 0, 0)
-      self.pitchwidget = ControlWidget(textlabel="pitch")
-      layout.addWidget(self.pitchwidget, 0, 1)
-      self.rollwidget = ControlWidget(textlabel="roll")
-      layout.addWidget(self.rollwidget, 1, 0)
-      self.yawwidget = ControlWidget(textlabel="raw")
-      layout.addWidget(self.yawwidget, 1, 1)
-      self.setLayout(layout)
-      
-   def isAwake(self):
-      return self.process.isAwake()
-   def sleep(self):
-      if self.isAwake():
-         self.process.sleep()
-   def wake(self):
-      if not self.isAwake():
-         self.process.wake()
-   def shutdown(self):
-      self.process.shutdown()
-      time.sleep(0.1)
-      self.process.terminate()      
-   def getJoystickInput(self):
-      try:
-         tstamp, data = self.process_output_queue.get(False)
-         print tstamp, data
-         sys.stdout.flush()
-      except Queue.Empty:
-         pass
 
 
 
