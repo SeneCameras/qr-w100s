@@ -24,13 +24,18 @@ class JoystickProcess(multiprocessing.Process):
       self.sleeping.clear()
       
    def run(self):
-      
-      pygame.init()
-      self.j = pygame.joystick.Joystick(0)
-      self.j.init()
-
-      print 'Found: ', self.j.get_name()
-      sys.stdout.flush()
+      try:
+         pygame.init()
+         self.j = pygame.joystick.Joystick(0)
+         self.j.init()
+         print 'Found: ', self.j.get_name()
+         sys.stdout.flush()
+         
+      except Exception, e:
+         print "exception in joystick:", e
+         self.sleep()
+         time.sleep(0.1)
+         sys.stdout.flush()
       
       while not self.exit.is_set():
          
