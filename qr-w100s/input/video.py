@@ -80,9 +80,14 @@ class WalkeraVideoProcess(multiprocessing.Process):
       self.password_mgr.add_password(None, self.top_level_url, 'admin', 'admin123')
       self.handler = urllib2.HTTPBasicAuthHandler(self.password_mgr)
       self.opener = urllib2.build_opener(self.handler)
-      self.opener.open("http://192.168.10.1:8080/?action=stream")
-      urllib2.install_opener(self.opener)      
-      self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")            
+      try:
+         self.opener.open("http://192.168.10.1:8080/?action=stream")
+         urllib2.install_opener(self.opener)
+         self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")            
+      except Exception, e:
+         print "exception opening Walkera stream in urllib2:", e
+         self.exit.set()
+         time.sleep(0.1)
       
       while not self.exit.is_set():
          

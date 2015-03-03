@@ -56,6 +56,9 @@ class ProcessorWidget(QtGui.QWidget):
       for o in self.managed_objects:
          if not o.isAwake():
             o.wake()
+   def reset(self):
+      for o in self.managed_objects:
+         o.reset()
    def shutdown(self):
       for o in self.managed_objects:
          o.shutdown()
@@ -160,12 +163,12 @@ class VideoProcessorWidget(ProcessorWidget):
       except Queue.Empty:
          pass
 
-# manages the input streams and dispatches frames to consumer processes
+# manages the two input streams and dispatches frames to consumer processes
 class VideoManagerWidget(QtGui.QWidget):
    def __init__(self, target_FPS = 30.0):
       super(VideoManagerWidget, self).__init__()
-           
-      self.consumer_queues = []
+      
+      self.managed_processor_widgets = []
       
       self.camera_queue  = multiprocessing.Queue(maxsize=1)
       self.camera_process = SystemCamera1VideoProcess(self.camera_queue)
@@ -202,44 +205,48 @@ class VideoManagerWidget(QtGui.QWidget):
 
    def createVideoProcessorWidget(self, process_class, process_label=""):
       new_vp_widget = VideoProcessorWidget(process_class, process_label)
-      self.consumer_queues.append(new_vp_widget.process_input_queue)
+      self.managed_processor_widgets.append(new_vp_widget)
       return new_vp_widget
    
    def getImage(self):
+      if self.src_type_group.checkedId() == 2: #no video
+         return
+      
       if self.src_type_group.checkedId() == 0: #cam1
          try:
             tstamp, cv_img = self.camera_queue.get(False)
             self.get_images_FPS.update()
-            for q in self.consumer_queues:
-               try:
-                  q.put((tstamp, cv_img), False)
-               except Queue.Full:
-                  pass
          except:
-            pass
+            return
       elif self.src_type_group.checkedId() == 1: #walkera
          try:
             tstamp, cv_img = self.walkera_queue.get(False)
             self.get_images_FPS.update()
-            for q in self.consumer_queues:
-               try:
-                  q.put((tstamp, cv_img), False)
-               except Queue.Full:
-                  pass
          except:
+            return
+      
+      for w in self.managed_processor_widgets:
+         try:
+            w.process_input_queue.put((tstamp, cv_img), False)
+         except Queue.Full:
             pass
-
-   def switchToCamera(self):
-      printnow("switch to camera")
    
+   def switchToCamera(self):
+      for w in self.managed_processor_widgets:
+         w.reset()
+         
    def switchToWalkera(self):
-      printnow("switch to walkera")
-      self.walkera_process.reset() #reset tracks
+      for w in self.managed_processor_widgets:
+         w.reset()
 
    def shutdown(self):
+      for w in self.managed_processor_widgets:
+         w.shutdown()
+      
       self.camera_process.shutdown()
       time.sleep(0.1)
       self.camera_process.terminate()
+      
       self.walkera_process.shutdown()
       time.sleep(0.1)
       self.walkera_process.terminate()
@@ -286,12 +293,14 @@ class TimeYQueuePlotWidget(pg.PlotWidget):
       self.awake = False
       
    def wake(self):
+      self.update_t.timeout.connect(self.update)
+      self.awake = True
+      
+   def reset(self):
       self.start = datetime.datetime.now()
       self.xvals = []
       self.yvals = []
-      self.update_t.timeout.connect(self.update)
-      self.awake = True
-
+      
    def shutdown(self):
       pass
 
@@ -409,15 +418,10 @@ class WalkeraGUI(QtGui.QWidget):
       
       self.raw_widget = self.vm.createVideoProcessorWidget(IdentityProcess, process_label="Raw Video")
       tab1_layout.addWidget(self.raw_widget, 1, 0)
-      self.objects_to_shutdown_at_quit.append(self.raw_widget)
-      
       self.lk_widget = self.vm.createVideoProcessorWidget(LKProcess, process_label="Optical Flow")
       tab1_layout.addWidget(self.lk_widget, 1, 1)
-      self.objects_to_shutdown_at_quit.append(self.lk_widget)
-
       self.fd_widget = self.vm.createVideoProcessorWidget(FaceDetectProcess, process_label="Face Detection")
       tab1_layout.addWidget(self.fd_widget, 1, 2)
-      self.objects_to_shutdown_at_quit.append(self.fd_widget)
       
       tab1.setLayout(tab1_layout)
       tabs.addTab(tab1, "CV")
@@ -448,8 +452,6 @@ class WalkeraGUI(QtGui.QWidget):
    def shutdown(self):
       for o in self.objects_to_shutdown_at_quit:
          o.shutdown()
-
-
 
 if __name__ == '__main__':
    app = QtGui.QApplication(sys.argv)

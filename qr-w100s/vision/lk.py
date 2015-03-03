@@ -39,8 +39,6 @@ class LKProcess(SleepableCVProcess):
          vis = cv2.cvtColor(vis, cv2.COLOR_GRAY2RGB)
          
          if (self.frame_gray is not None) and (self.prev_gray is not None) and (len(self.tracks) > 0):
-            print (self.frame_gray is not None),  (self.prev_gray is not None), len(self.tracks)
-            sys.stdout.flush()
             
             img0, img1 = self.prev_gray, self.frame_gray
             p0 = np.float32([tr[-1] for tr in self.tracks]).reshape(-1, 1, 2)
