@@ -200,7 +200,7 @@ if __name__ == '__main__':
    WalkeraVideoProcess
    '''
    
-   widget = VideoTestWidget(SystemCamera1VideoProcess)
+   widget = VideoTestWidget(WalkeraVideoProcess)
 
    app.aboutToQuit.connect(widget.shutdown)
 
