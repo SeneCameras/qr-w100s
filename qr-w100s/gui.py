@@ -454,8 +454,8 @@ class FlightControlWidget(ProcessorWidget):
       try:
          if self.enable_toggle.isChecked() and (self.socket is None):
             self.socket = socket.socket()
-            self.socket.setblocking(0)
             self.socket.connect(("192.168.10.1", 2001))
+            self.socket.setblocking(0)
          else:
             self.command.zero()
             self.socket.send(self.command.data)
@@ -502,6 +502,7 @@ class FlightControlWidget(ProcessorWidget):
                if self.enable_toggle.isChecked():
                   self.FPS.update()
                   #self.FPS.log()
+                  self.socket.send(self.command.data)
                   self.command_widget.setText(self.command.getString()) 
                else:
                   self.command.zero()
