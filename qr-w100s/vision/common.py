@@ -54,6 +54,7 @@ class SleepableCVProcess(multiprocessing.Process):
             try:
                self.outputqueue.put((tstamp, vis), False)
             except Queue.Full:
+               time.sleep(1/30.0) #default to 30fps if nobody wants to go faster
                continue
          except Queue.Empty:
             continue

@@ -50,6 +50,7 @@ class JoystickProcess(multiprocessing.Process):
             try:
                self.outputqueue.put((tstamp, data), False)
             except Queue.Full:
+               time.sleep(1/30.0) #default to 30fps if nobody wants to go faster
                continue
 
    def get(self):

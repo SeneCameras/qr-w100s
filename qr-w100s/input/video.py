@@ -46,6 +46,7 @@ class SystemCamera1VideoProcess(multiprocessing.Process):
             try:
                self.outputqueue.put((tstamp, vis), False)
             except Queue.Full:
+               time.sleep(1/30.0) #default to 30fps if nobody wants to go faster
                continue
       
       camera.release()
@@ -137,6 +138,7 @@ class WalkeraVideoProcess(multiprocessing.Process):
                try:
                   self.outputqueue.put((tstamp, vis), False)
                except Queue.Full:
+                  time.sleep(1/30.0) #default to 30fps if nobody wants to go faster
                   continue
 
    def isAwake(self):
