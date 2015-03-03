@@ -349,7 +349,7 @@ class WalkeraCommand():
 
 # connects Joystick controls to drone flight vectors
 class FlightControlWidget(ProcessorWidget):
-   def __init__(self, target_FPS = 40.0):
+   def __init__(self, target_FPS = 12.0):
       self.process_class = JoystickProcess;
       super(FlightControlWidget, self).__init__(self.process_class)
       
@@ -371,7 +371,7 @@ class FlightControlWidget(ProcessorWidget):
       self.thrust_widget = TimeYQueuePlotWidget(self.thrust_queue)
       self.manageSleepableWidget(self.thrust_widget)
       self.thrust_widget.setMaximumSize(self.plot_x_size,self.plot_y_size)
-      self.thrust_widget.setYRange(-1, 1)
+      self.thrust_widget.setYRange(-0.1, 1.1)
       self.thrust_widget.setLabel('left', 'Setpoint', units='au')
       layout.addWidget(self.thrust_widget, 1, 0)
       
@@ -383,7 +383,7 @@ class FlightControlWidget(ProcessorWidget):
       self.yaw_widget = TimeYQueuePlotWidget(self.yaw_queue)
       self.manageSleepableWidget(self.yaw_widget)
       self.yaw_widget.setMaximumSize(self.plot_x_size,self.plot_y_size)
-      self.yaw_widget.setYRange(-1, 1)
+      self.yaw_widget.setYRange(-1.1, 1.1)
       self.yaw_widget.setLabel('left', 'Setpoint', units='au')
       layout.addWidget(self.yaw_widget, 3, 0)
 
@@ -395,7 +395,7 @@ class FlightControlWidget(ProcessorWidget):
       self.pitch_widget = TimeYQueuePlotWidget(self.pitch_queue)
       self.manageSleepableWidget(self.pitch_widget)
       self.pitch_widget.setMaximumSize(self.plot_x_size,self.plot_y_size)
-      self.pitch_widget.setYRange(-1, 1)
+      self.pitch_widget.setYRange(-1.1, 1.1)
       self.pitch_widget.setLabel('left', 'Setpoint', units='au')
       layout.addWidget(self.pitch_widget, 1, 1)
       
@@ -407,7 +407,7 @@ class FlightControlWidget(ProcessorWidget):
       self.roll_widget = TimeYQueuePlotWidget(self.roll_queue)
       self.manageSleepableWidget(self.roll_widget)
       self.roll_widget.setMaximumSize(self.plot_x_size,self.plot_y_size)
-      self.roll_widget.setYRange(-1, 1)
+      self.roll_widget.setYRange(-1.1, 1.1)
       self.roll_widget.setLabel('left', 'Setpoint', units='au')
       layout.addWidget(self.roll_widget, 3, 1)
 
@@ -428,7 +428,28 @@ class FlightControlWidget(ProcessorWidget):
       self.process_joystick_inputs.start(1000.0/target_FPS)
       
       self.FPS = fps()
-   
+      
+   def shutdown(self): #override parent so we can close the socket
+      for o in self.managed_objects:
+         o.shutdown()
+         try: # see if terminate() exists
+            o.terminate
+         except NameError:
+            pass
+         else:
+            time.sleep(0.1)
+            o.terminate()
+      try:
+         if (self.socket is not None):
+            self.command.zero()
+            self.socket.send(self.command.data)
+            self.socket.close()
+            self.socket = None
+      except Exception, e:
+         if ("%s" % e).find("10057") < 0:
+            print "enableToggleChanged: %s" % (e)
+            sys.stdout.flush()
+            
    def enableToggleChanged(self):
       try:
          if self.enable_toggle.isChecked() and (self.socket is None):
@@ -450,8 +471,11 @@ class FlightControlWidget(ProcessorWidget):
          tstamp, data = self.joystick_process_output_queue.get(False)
          
          if (data is not None):
-            try: #send data first so we're not limited by plot updates
-               self.command.thrust = int((1 - data[1])*((0x05dc-0x02bf)>>1)) + 0x02bf
+            try: #always send data first so we're not rate limited by plot updates
+               data[1] = -data[1]
+               if data[1] < 0: #we only use the top half of the joystick for throttle
+                  data[1] = 0
+               self.command.thrust = (int(data[1]*((0x05dc-0x02bf))) + 0x02bf)
                self.thrust_queue.put((tstamp, data[1]), False)
             except Queue.Full:
                pass
@@ -477,8 +501,7 @@ class FlightControlWidget(ProcessorWidget):
             if self.socket is not None:
                if self.enable_toggle.isChecked():
                   self.FPS.update()
-                  self.FPS.log()
-                  self.socket.send(self.command.data)
+                  #self.FPS.log()
                   self.command_widget.setText(self.command.getString()) 
                else:
                   self.command.zero()
@@ -491,7 +514,7 @@ class FlightControlWidget(ProcessorWidget):
          if ("%s" % e).find("10057") < 0:
             print "enableToggleChanged: %s" % (e)
             sys.stdout.flush()
-
+         
 
 class WalkeraGUI(QtGui.QWidget):
    def __init__(self):
@@ -522,15 +545,6 @@ class WalkeraGUI(QtGui.QWidget):
       self.flight_control_widget = FlightControlWidget()
       self.objects_to_shutdown_at_quit.append(self.flight_control_widget)
       tabs.addTab(self.flight_control_widget, "Flight Controls")
-      
-      # Walkera QR-W100S
-      tab3 = QtGui.QWidget()
-      tab3_layout = QtGui.QGridLayout()
-      tab3_instructions = QtGui.QLabel()
-      tab3_instructions.setText("Connect to the Walkera WiFi connection!")
-      tab3_layout.addWidget(tab3_instructions, 0, 0)
-      tab3.setLayout(tab3_layout)
-      tabs.addTab(tab3, "QR-W100S")
       
       #main window layout
       window_layout = QtGui.QHBoxLayout()
