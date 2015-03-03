@@ -316,7 +316,7 @@ class TimeYQueuePlotWidget(pg.PlotWidget):
 class WalkeraCommand():
    def __init__(self):
       self.data  = bytearray(18)
-      self.zero()
+      self.zero() #calls update
    def zero(self):
       self.switch   = 0x61
       self.thrust   = 0x02bf #min value
@@ -344,12 +344,11 @@ class WalkeraCommand():
       self.data[16] = self.pitch & 0xff
       self.data[17] = sum(self.data[0:17]) & 0xFF
    def getString(self):
-      self.update()
       return binascii.hexlify(self.data)
 
 # connects Joystick controls to drone flight vectors
 class FlightControlWidget(ProcessorWidget):
-   def __init__(self, target_FPS = 12.0):
+   def __init__(self, target_FPS = 30.0):
       self.process_class = JoystickProcess;
       super(FlightControlWidget, self).__init__(self.process_class)
       
@@ -449,18 +448,23 @@ class FlightControlWidget(ProcessorWidget):
          if ("%s" % e).find("10057") < 0:
             print "enableToggleChanged: %s" % (e)
             sys.stdout.flush()
-            
+
    def enableToggleChanged(self):
       try:
          if self.enable_toggle.isChecked() and (self.socket is None):
-            self.socket = socket.socket()
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1) #disable Nagle          
+            #self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 0) #disable kernel buffer
             self.socket.connect(("192.168.10.1", 2001))
-            self.socket.setblocking(0)
+            #self.socket.setblocking(0)
+            self.command_widget.setText(self.command.getString() + " ...opened!...")
          else:
             self.command.zero()
             self.socket.send(self.command.data)
             self.socket.close()
             self.socket = None
+            self.command_widget.setText(self.command.getString() + " ...closed!...")
+            
       except Exception, e:
          if ("%s" % e).find("10057") < 0:
             print "enableToggleChanged: %s" % (e)
@@ -475,39 +479,36 @@ class FlightControlWidget(ProcessorWidget):
                data[1] = -data[1]
                if data[1] < 0: #we only use the top half of the joystick for throttle
                   data[1] = 0
-               self.command.thrust = (int(data[1]*((0x05dc-0x02bf))) + 0x02bf)
+               self.command.thrust = int( data[1] * (0x05dc-0x02bf) ) + 0x02bf
                self.thrust_queue.put((tstamp, data[1]), False)
             except Queue.Full:
                pass
 
             try:
-               self.command.pitch = (int((1 - data[3])*((0x0640-0x025b)>>1)) + 0x025b)
+               self.command.pitch = int( (1 - data[3]) * ((0x0640-0x025b)>>1)) + 0x025b
                self.pitch_queue.put((tstamp, data[3]), False)
             except Queue.Full:
                pass
 
             try:
-               self.command.roll = (int((1 - data[2])*((0x0640-0x025b)>>1)) + 0x025b)
+               self.command.roll = int( (1 - data[2]) * ((0x0640-0x025b)>>1)) + 0x025b
                self.roll_queue.put((tstamp, data[2]), False)
             except Queue.Full:
                pass
 
             try:
-               self.command.yaw = (int((1 - data[0])*((0x0640-0x025b)>>1)) + 0x025b)
+               self.command.yaw = int( (1 - data[0]) * ((0x0640-0x025b)>>1)) + 0x025b
                self.yaw_queue.put((tstamp, data[0]), False)
             except Queue.Full:
                pass
             
             if self.socket is not None:
                if self.enable_toggle.isChecked():
+                  self.command.update()
+                  self.socket.send(self.command.data)
+                  self.command_widget.setText(self.command.getString())
                   self.FPS.update()
-                  #self.FPS.log()
-                  self.socket.send(self.command.data)
-                  self.command_widget.setText(self.command.getString()) 
-               else:
-                  self.command.zero()
-                  self.socket.send(self.command.data)
-                  self.command_widget.setText(self.command.getString()) 
+                  #self.FPS.log()              
                
       except Queue.Empty:
          pass
