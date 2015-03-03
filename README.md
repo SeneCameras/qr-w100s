@@ -10,13 +10,11 @@ Copyright 2015 Sene Cameras
 Requirements
 ------------
 
-  * PySide
   * Python 2.7
+  * PySide
   * OpenCV
-  * Vispy
   * PyQtGraph
-  * Pygame (for manual joystick control)
-
+  * Pygame (for joystick control)
 
 Documentation
 -------------
