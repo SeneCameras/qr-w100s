@@ -43,11 +43,14 @@ class WalkeraCommand():
       return binascii.hexlify(self.data)
 
 def pulse():
+   print "***************** begin pulse *****************"
+   sys.stdout.flush()
+   
    w = WalkeraCommand()
    
    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
    s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1) #disable Nagle          
-   #s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 0) #disable kernel buffer
+   s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 0) #disable kernel buffer
    s.connect(("192.168.10.1", 2001))
    s.setblocking(0)
    
@@ -56,27 +59,42 @@ def pulse():
    print "zero: ", w.getString()
    sys.stdout.flush()
    
-   data = [0, 1, 0, 0]
-   w.thrust = (int(data[1])*(0x05dc-0x02bf) + 0x02bf)
-   w.pitch = (int((1 - data[3])*((0x0640-0x025b)>>1)) + 0x025b)
-   w.roll = (int((1 - data[2])*((0x0640-0x025b)>>1)) + 0x025b)
-   w.yaw = (int((1 - data[0])*((0x0640-0x025b)>>1)) + 0x025b)
-   w.update()
-   s.send(w.data)
-   print "full: ", w.getString()
-   sys.stdout.flush()
+   for t in range(100):
+      data = [0, t/100.0, 0, 0]
+      w.thrust = (int(     data[1] * (0x05dc-0x02bf)    ) + 0x02bf)
+      w.pitch  = (int((1 - data[3])*((0x0640-0x025b)>>1)) + 0x025b)
+      w.roll   = (int((1 - data[2])*((0x0640-0x025b)>>1)) + 0x025b)
+      w.yaw    = (int((1 - data[0])*((0x0640-0x025b)>>1)) + 0x025b)
+      w.update()
+      s.send(w.data)
+      if t % 10 == 0 :
+         print "  ramp up (%d): %s"%(t, w.getString())
+         sys.stdout.flush()
+      time.sleep(0.01)
+      
+   for t in range(100):
+      data = [0, 1.0 - t/100.0, 0, 0]
+      w.thrust = (int(     data[1] * (0x05dc-0x02bf)    ) + 0x02bf)
+      w.pitch  = (int((1 - data[3])*((0x0640-0x025b)>>1)) + 0x025b)
+      w.roll   = (int((1 - data[2])*((0x0640-0x025b)>>1)) + 0x025b)
+      w.yaw    = (int((1 - data[0])*((0x0640-0x025b)>>1)) + 0x025b)
+      w.update()
+      s.send(w.data)
+      if t % 10 == 0 :
+         print "ramp down (%d): %s"%(t, w.getString())
+         sys.stdout.flush()
+      time.sleep(0.01)
    
-   data = [0, 0, 0, 0]
-   w.thrust = (int(data[1]*((0x05dc-0x02bf))) + 0x02bf)
-   w.pitch = (int((1 - data[3])*((0x0640-0x025b)>>1)) + 0x025b)
-   w.roll = (int((1 - data[2])*((0x0640-0x025b)>>1)) + 0x025b)
-   w.yaw = (int((1 - data[0])*((0x0640-0x025b)>>1)) + 0x025b)
-   w.update()
+   w.zero()
    s.send(w.data)
    print "zero: ", w.getString()
    sys.stdout.flush()
    
    s.close()
+   
+   print "*****************  end pulse  *****************"
+   sys.stdout.flush()
+   
 
 if __name__ == '__main__':
    
@@ -85,7 +103,7 @@ if __name__ == '__main__':
    app.aboutToQuit.connect(widget.shutdown)
    widget.show()
 
-   FPS = 0.5
+   FPS = 0.1
    t = QtCore.QTimer()
    t.timeout.connect(pulse)
    t.start(1000.0/FPS)
