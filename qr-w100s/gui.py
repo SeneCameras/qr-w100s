@@ -18,6 +18,9 @@ from input.video import SystemCamera1VideoProcess, WalkeraVideoProcess
 import numpy as np
 import pyqtgraph as pg
 
+import binascii
+import socket
+
 import inspect
 def debug():
     (frame, filename, line_number,
@@ -282,6 +285,12 @@ class TimeYQueuePlotWidget(pg.PlotWidget):
       except Queue.Empty:
          pass
       
+      #reduce to 100 points
+      if len(self.xvals)>2 and len(self.yvals)>2:
+         self.xvals = self.xvals[-150:]
+         self.yvals = self.yvals[-150:]
+         self.setXRange(self.xvals[0], self.xvals[-1:][0])
+      
    def idle(self):
       pass
    
@@ -304,9 +313,43 @@ class TimeYQueuePlotWidget(pg.PlotWidget):
    def shutdown(self):
       pass
 
+class WalkeraCommand():
+   def __init__(self):
+      self.data  = bytearray(18)
+      self.zero()
+   def zero(self):
+      self.switch   = 0x61
+      self.thrust   = 0x02bf #min value
+      self.yaw      = 0x044a
+      self.pitch    = 0x044a
+      self.roll     = 0x044a
+      self.update()
+   def update(self):
+      self.data[0] = self.switch #enable code
+      self.data[1] = self.thrust >> 8
+      self.data[2] = self.thrust & 0xff
+      self.data[3] = self.yaw >> 8
+      self.data[4] = self.yaw & 0xff
+      self.data[5] = self.pitch >> 8
+      self.data[6] = self.pitch & 0xff
+      self.data[7] = self.roll >> 8
+      self.data[8] = self.roll & 0xff
+      self.data[9] = self.roll >> 8
+      self.data[10] = self.roll & 0xff
+      self.data[11] = self.thrust >> 8
+      self.data[12] = self.thrust & 0xff
+      self.data[13] = self.yaw >> 8
+      self.data[14] = self.yaw & 0xff
+      self.data[15] = self.pitch >> 8
+      self.data[16] = self.pitch & 0xff
+      self.data[17] = sum(self.data[0:17]) & 0xFF
+   def getString(self):
+      self.update()
+      return binascii.hexlify(self.data)
+
 # connects Joystick controls to drone flight vectors
 class FlightControlWidget(ProcessorWidget):
-   def __init__(self, target_FPS = 60.0):
+   def __init__(self, target_FPS = 40.0):
       self.process_class = JoystickProcess;
       super(FlightControlWidget, self).__init__(self.process_class)
       
@@ -315,6 +358,8 @@ class FlightControlWidget(ProcessorWidget):
 
       self.plot_x_size = 430
       self.plot_y_size = 240
+
+      self.command = WalkeraCommand()
 
       layout = QtGui.QGridLayout()
 
@@ -366,39 +411,86 @@ class FlightControlWidget(ProcessorWidget):
       self.roll_widget.setLabel('left', 'Setpoint', units='au')
       layout.addWidget(self.roll_widget, 3, 1)
 
+      self.command_widget = QtGui.QLabel()
+      self.command_widget.setText("command to send: ")
+      layout.addWidget(self.command_widget, 4, 0)
+
+      self.enable_toggle = QtGui.QCheckBox("Enable Control")
+      layout.addWidget(self.enable_toggle, 4, 1)
+      self.enable_toggle.setChecked(False)
+      self.enable_toggle.stateChanged.connect(self.enableToggleChanged)
+      self.socket = None
+
       self.setLayout(layout)
       
-      self.get_joystick_inputs = QtCore.QTimer()
-      self.get_joystick_inputs.timeout.connect(self.getJoystickInput)
-      self.get_joystick_inputs.start(1000.0/target_FPS)
+      self.process_joystick_inputs = QtCore.QTimer()
+      self.process_joystick_inputs.timeout.connect(self.processJoystickInput)
+      self.process_joystick_inputs.start(1000.0/target_FPS)
+      
+      self.FPS = fps()
    
-   def getJoystickInput(self):
+   def enableToggleChanged(self):
+      try:
+         if self.enable_toggle.isChecked() and (self.socket is None):
+            self.socket = socket.socket()
+            self.socket.setblocking(0)
+            self.socket.connect(("192.168.10.1", 2001))
+         else:
+            self.command.zero()
+            self.socket.send(self.command.data)
+            self.socket.close()
+            self.socket = None
+      except Exception, e:
+         if ("%s" % e).find("10057") < 0:
+            print "enableToggleChanged: %s" % (e)
+            sys.stdout.flush()
+
+   def processJoystickInput(self):
       try:
          tstamp, data = self.joystick_process_output_queue.get(False)
          
          if (data is not None):
-            try:
+            try: #send data first so we're not limited by plot updates
+               self.command.thrust = int((1 - data[1])*((0x05dc-0x02bf)>>1)) + 0x02bf
                self.thrust_queue.put((tstamp, data[1]), False)
             except Queue.Full:
                pass
 
             try:
+               self.command.pitch = (int((1 - data[3])*((0x0640-0x025b)>>1)) + 0x025b)
                self.pitch_queue.put((tstamp, data[3]), False)
             except Queue.Full:
                pass
 
             try:
+               self.command.roll = (int((1 - data[2])*((0x0640-0x025b)>>1)) + 0x025b)
                self.roll_queue.put((tstamp, data[2]), False)
             except Queue.Full:
                pass
 
             try:
+               self.command.yaw = (int((1 - data[0])*((0x0640-0x025b)>>1)) + 0x025b)
                self.yaw_queue.put((tstamp, data[0]), False)
             except Queue.Full:
                pass
-         
+            
+            if self.socket is not None:
+               if self.enable_toggle.isChecked():
+                  self.FPS.update()
+                  self.FPS.log()
+                  self.socket.send(self.command.data)
+                  self.command_widget.setText(self.command.getString()) 
+               else:
+                  self.command.zero()
+                  self.socket.send(self.command.data)
+                  self.command_widget.setText(self.command.getString()) 
+               
       except Queue.Empty:
          pass
+      except Exception, e:
+         if ("%s" % e).find("10057") < 0:
+            print "enableToggleChanged: %s" % (e)
+            sys.stdout.flush()
 
 
 class WalkeraGUI(QtGui.QWidget):

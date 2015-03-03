@@ -86,6 +86,7 @@ class WalkeraVideoProcess(multiprocessing.Process):
          self.resp = urllib2.urlopen("http://192.168.10.1:8080/?action=stream")            
       except Exception, e:
          print "exception opening Walkera stream in urllib2:", e
+         sys.stdout.flush()
          self.exit.set()
          time.sleep(0.1)
       
