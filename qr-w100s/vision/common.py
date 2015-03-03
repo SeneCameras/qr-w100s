@@ -26,6 +26,7 @@ class SleepableCVProcess(multiprocessing.Process):
       self.outputqueue = outputqueue
       self.exit = multiprocessing.Event()
       self.sleeping = multiprocessing.Event()
+      self.reseting = multiprocessing.Event()
       
    def run(self):
       
@@ -36,6 +37,10 @@ class SleepableCVProcess(multiprocessing.Process):
          if self.sleeping.is_set():
             time.sleep(0.1)
             continue
+         
+         if self.reseting.is_set():
+            self.setup()
+            self.reseting.clear()
          
          try:
             tstamp, cv_img = self.inputqueue.get(False)
@@ -72,6 +77,9 @@ class SleepableCVProcess(multiprocessing.Process):
       
    def wake(self):
       self.sleeping.clear()
+   
+   def reset(self):
+      self.reseting.set()
 
 
 image_extensions = ['.bmp', '.jpg', '.jpeg', '.png', '.tif', '.tiff', '.pbm', '.pgm', '.ppm']

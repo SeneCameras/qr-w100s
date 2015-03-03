@@ -7,6 +7,7 @@ import multiprocessing
 import Queue #needed separately for the Empty exception
 import time, datetime
 import numpy as np
+import sys
 
 lk_params = dict( winSize  = (15, 15),
                   maxLevel = 2,
@@ -23,6 +24,7 @@ class LKProcess(SleepableCVProcess):
    def __init__(self, inputqueue, outputqueue):
       SleepableCVProcess.__init__(self, inputqueue, outputqueue)
 
+   def setup(self):
       self.track_len = 10
       self.detect_interval = 5
       self.tracks = []
@@ -36,7 +38,10 @@ class LKProcess(SleepableCVProcess):
          vis = self.frame_gray.copy()
          vis = cv2.cvtColor(vis, cv2.COLOR_GRAY2RGB)
          
-         if len(self.tracks) > 0:
+         if (self.frame_gray is not None) and (self.prev_gray is not None) and (len(self.tracks) > 0):
+            print (self.frame_gray is not None),  (self.prev_gray is not None), len(self.tracks)
+            sys.stdout.flush()
+            
             img0, img1 = self.prev_gray, self.frame_gray
             p0 = np.float32([tr[-1] for tr in self.tracks]).reshape(-1, 1, 2)
             p1,  st, err = cv2.calcOpticalFlowPyrLK(img0, img1, p0, None, **lk_params)
@@ -44,9 +49,7 @@ class LKProcess(SleepableCVProcess):
             d = abs(p0-p0r).reshape(-1, 2).max(-1)
             good = d < 1
             new_tracks = []
-            dx = 0
-            dy = 0
-            
+
             for tr, (x, y), good_flag in zip(self.tracks, p1.reshape(-1, 2), good):
                if not good_flag:
                   continue
@@ -68,7 +71,9 @@ class LKProcess(SleepableCVProcess):
             if p is not None:
                for x, y in np.float32(p).reshape(-1, 2):
                   self.tracks.append([(x, y)])
+                  
          self.frame_idx += 1
+         
          self.prev_gray = self.frame_gray
  
          return vis

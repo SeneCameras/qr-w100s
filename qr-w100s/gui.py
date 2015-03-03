@@ -8,11 +8,12 @@ import time, datetime
 import multiprocessing
 import Queue #needed separately for the Empty exception
 
-from vision.BGR2RGB import BGR2RGBProcess
+from vision.identity import IdentityProcess
 from vision.lk import LKProcess
 from vision.facedetect import FaceDetectProcess
 
 from input.joystick import JoystickProcess
+from input.video import SystemCamera1VideoProcess, WalkeraVideoProcess
 
 import numpy as np
 import pyqtgraph as pg
@@ -164,54 +165,62 @@ class VideoManagerWidget(QtGui.QWidget):
    def __init__(self, target_FPS = 30.0):
       super(VideoManagerWidget, self).__init__()
            
-      self.managed_processor_widgets = []
       self.consumer_queues = []
+      
+      self.camera_queue  = multiprocessing.Queue(maxsize=1)
+      self.camera_process = SystemCamera1VideoProcess(self.camera_queue)
+      self.camera_process.start()
+   
+      self.walkera_queue   = multiprocessing.Queue(maxsize=1)
+      self.walkera_process = WalkeraVideoProcess(self.walkera_queue)
+      self.walkera_process.start()
       
       #selector for video input type
       layout = QtGui.QHBoxLayout()
       self.src_type_group = QtGui.QButtonGroup()
       self.r0=QtGui.QRadioButton("Camera(1)")
       self.src_type_group.addButton(self.r0, 0)
-      self.r0.clicked.connect(self.switchToCamera1)
-      self.r1=QtGui.QRadioButton("Walkera Wifi (FUTURE)")
+      self.r0.clicked.connect(self.switchToCamera)
+      self.r1=QtGui.QRadioButton("Walkera Wifi")
       self.src_type_group.addButton(self.r1, 1)
-      self.r1.clicked.connect(self.switchToWalkeraWifi)
+      self.r1.clicked.connect(self.switchToWalkera)
       self.r2=QtGui.QRadioButton("None")
       self.src_type_group.addButton(self.r2, 2)
-      self.r2.clicked.connect(self.switchToNone)
       layout.addWidget(self.r0)
       layout.addWidget(self.r1)
       layout.addWidget(self.r2)
       self.setLayout(layout)
-      
-      # default to cam1 video
-      self.r1.setEnabled(False)
-      self.r0.setChecked(True)  
-      self.camera = cv2.VideoCapture(1) # camera ID depends on system: 0, 1, etc
       
       self.get_images_t = QtCore.QTimer()
       self.get_images_t.timeout.connect(self.getImage)
       self.get_images_t.start(1000.0/target_FPS)
       
       self.get_images_FPS = fps()
+      
+      # default to cam1 video
+      self.r0.setChecked(True)
 
    def createVideoProcessorWidget(self, process_class, process_label=""):
       new_vp_widget = VideoProcessorWidget(process_class, process_label)
       self.consumer_queues.append(new_vp_widget.process_input_queue)
-      self.managed_processor_widgets.append(new_vp_widget)
       return new_vp_widget
    
    def getImage(self):
       if self.src_type_group.checkedId() == 0: #cam1
          try:
-            hello, cv_img = self.camera.read()
+            tstamp, cv_img = self.camera_queue.get(False)
             self.get_images_FPS.update()
-            
-            # resize to 320x240
-            if (cv_img is not None) and cv_img.data:
-               cv_img = cv2.resize(cv_img,(320,240),interpolation=cv2.INTER_NEAREST)
-            
-            tstamp = datetime.datetime.now()
+            for q in self.consumer_queues:
+               try:
+                  q.put((tstamp, cv_img), False)
+               except Queue.Full:
+                  pass
+         except:
+            pass
+      elif self.src_type_group.checkedId() == 1: #walkera
+         try:
+            tstamp, cv_img = self.walkera_queue.get(False)
+            self.get_images_FPS.update()
             for q in self.consumer_queues:
                try:
                   q.put((tstamp, cv_img), False)
@@ -220,21 +229,20 @@ class VideoManagerWidget(QtGui.QWidget):
          except:
             pass
 
-   def shutdown(self):
-      if self.src_type_group.checkedId() == 0:
-         self.camera.release()
-      
-   def switchToCamera1(self):
-      if self.src_type_group.checkedId() != 0:
-         self.camera = cv2.VideoCapture(1)
+   def switchToCamera(self):
+      printnow("switch to camera")
    
-   def switchToWalkeraWifi(self):
-      pass
-   
-   def switchToNone(self):
-      if self.src_type_group.checkedId() == 0:
-         self.camera.release()
+   def switchToWalkera(self):
+      printnow("switch to walkera")
+      self.walkera_process.reset() #reset tracks
 
+   def shutdown(self):
+      self.camera_process.shutdown()
+      time.sleep(0.1)
+      self.camera_process.terminate()
+      self.walkera_process.shutdown()
+      time.sleep(0.1)
+      self.walkera_process.terminate()
 
 #wrap up PlotWidget to pull (datetime, y) pairs from a queue
 class TimeYQueuePlotWidget(pg.PlotWidget):
@@ -399,7 +407,7 @@ class WalkeraGUI(QtGui.QWidget):
       tab1_layout.addWidget(self.vm, 0, 0, 1, 3)
       self.objects_to_shutdown_at_quit.append(self.vm)
       
-      self.raw_widget = self.vm.createVideoProcessorWidget(BGR2RGBProcess, process_label="Raw Video")
+      self.raw_widget = self.vm.createVideoProcessorWidget(IdentityProcess, process_label="Raw Video")
       tab1_layout.addWidget(self.raw_widget, 1, 0)
       self.objects_to_shutdown_at_quit.append(self.raw_widget)
       
@@ -418,6 +426,15 @@ class WalkeraGUI(QtGui.QWidget):
       self.flight_control_widget = FlightControlWidget()
       self.objects_to_shutdown_at_quit.append(self.flight_control_widget)
       tabs.addTab(self.flight_control_widget, "Flight Controls")
+      
+      # Walkera QR-W100S
+      tab3 = QtGui.QWidget()
+      tab3_layout = QtGui.QGridLayout()
+      tab3_instructions = QtGui.QLabel()
+      tab3_instructions.setText("Connect to the Walkera WiFi connection!")
+      tab3_layout.addWidget(tab3_instructions, 0, 0)
+      tab3.setLayout(tab3_layout)
+      tabs.addTab(tab3, "QR-W100S")
       
       #main window layout
       window_layout = QtGui.QHBoxLayout()
