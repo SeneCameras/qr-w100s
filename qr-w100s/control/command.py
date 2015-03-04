@@ -21,7 +21,7 @@ class WalkeraCommandThread(threading.Thread):
       self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
       self.s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1) #disable Nagle          
       self.s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 0)   #disable kernel buffer
-      self.s.settimeout(0.5) #don't wait if we're not connected to a Walkera network
+      self.s.settimeout(1) #don't wait if we're not connected to a Walkera network
       try:
          self.s.connect(("192.168.10.1", 2001))
       except Exception, e:
@@ -136,7 +136,7 @@ if __name__ == '__main__':
    widget     = VideoTestWidget(WalkeraVideoProcess)
    controller = WalkeraCommandThread()
    if (controller.s is not None):
-      driver     = TestDriver(controller)
+      driver = TestDriver(controller)
    
       controller.start()
       widget.managed_objects.append(controller)
