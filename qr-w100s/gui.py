@@ -320,9 +320,11 @@ class TimeYQueuePlotWidget(pg.PlotWidget):
 
 # connects Joystick controls to drone flight vectors
 class FlightControlWidget(ProcessorWidget):
-   def __init__(self, target_FPS = 50.0):
+   def __init__(self, target_FPS = 40.0, gui=None):
       self.process_class = JoystickProcess;
       super(FlightControlWidget, self).__init__(self.process_class)
+      
+      self.gui = gui
       
       self.joystick_process_output_queue  = multiprocessing.Queue(maxsize=1)
       self.start( input_queue = None, output_queue = self.joystick_process_output_queue)
@@ -399,22 +401,52 @@ class FlightControlWidget(ProcessorWidget):
       self.process_joystick_inputs.start(1000.0/target_FPS)
       
       self.FPS = fps()
+      
+      self.button_lag = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] #used for latch behavior on joystick
 
    def enableToggleChanged(self):
       if self.enable_toggle.isChecked() and (self.controller is None):
          self.controller = WalkeraCommandThread()
-         self.controller.start()
+         if (self.controller.s is not None): #likely not on network...
+            self.controller.start()
+            self.command_label_widget.setText(self.controller.getString() + " ...just opened!...")
+         else:
+            self.command_label_widget.setText(" controller failed to start! (wifi issues?)")
          self.manageSleepableWidget(self.controller)
-         self.command_label_widget.setText(self.controller.getString() + " ...just opened!...")
+         
       else:
          self.controller.shutdown()
-         self.controller.join()
+         if (self.controller.s is not None): #likely not on network...
+            self.controller.join()
          self.controller = None
          self.command_label_widget.setText("controller closed!...")
          
-   def processJoystickInput(self):
+   def processJoystickInput(self): 
       try:
          tstamp, data = self.joystick_process_output_queue.get(False)
+         
+         # connect up buttons...
+         # We're using the Logitech F310 USB Gamepad:
+         # [LJ_LR, LJ_UD, RJ_LR, RJ_UD, X, A, B, Y, LB, RB, LT, RT, back, start, LJ_push, RJ_push]
+         # [    0,     1,     2,     3, 4, 5, 6, 7,  8,  9, 10, 11,   12,    13,      14,      15]
+
+         if data is not None:
+            for i in range(len(self.button_lag)):
+               if self.button_lag[i] > 0:
+                  self.button_lag[i] -= 1
+          
+            if data[13]: # "start" (connected to enable toggle)
+               if self.button_lag[13] == 0:
+                  self.button_lag[13] = 10;
+                  if self.enable_toggle.isChecked():
+                     self.enable_toggle.setChecked(False)
+                  else:
+                     self.enable_toggle.setChecked(True)
+            if data[8]: # "LB" (change to tab 0)
+               self.gui.tabs.setCurrentIndex(0)
+            if data[9]: # "RB" (change to tab 1)
+               self.gui.tabs.setCurrentIndex(1)
+         
          if self.controller is not None and data is not None:
             
             self.controller.setControlLevels(thrust=data[1], pitch=data[3], roll=data[2], yaw=data[0])
@@ -441,7 +473,7 @@ class FlightControlWidget(ProcessorWidget):
             
             self.FPS.update()
             #self.FPS.log()              
-               
+
       except Queue.Empty:
          pass
    
@@ -452,7 +484,7 @@ class WalkeraGUI(QtGui.QWidget):
 
       self.objects_to_shutdown_at_quit = []
 
-      tabs = QtGui.QTabWidget()
+      self.tabs = QtGui.QTabWidget()
       
       tab1 = QtGui.QWidget()
       tab1_layout = QtGui.QGridLayout()
@@ -469,16 +501,16 @@ class WalkeraGUI(QtGui.QWidget):
       tab1_layout.addWidget(self.fd_widget, 1, 2)
       
       tab1.setLayout(tab1_layout)
-      tabs.addTab(tab1, "CV")
+      self.tabs.addTab(tab1, "CV")
       
       # 4-axis flight controls
-      self.flight_control_widget = FlightControlWidget()
+      self.flight_control_widget = FlightControlWidget(gui=self)
       self.objects_to_shutdown_at_quit.append(self.flight_control_widget)
-      tabs.addTab(self.flight_control_widget, "Flight Controls")
+      self.tabs.addTab(self.flight_control_widget, "Flight Controls")
       
       #main window layout
       window_layout = QtGui.QHBoxLayout()
-      window_layout.addWidget(tabs)
+      window_layout.addWidget(self.tabs)
       
       self.setWindowTitle('Sene Cameras - QR-W100S')
       self.move(50,50)

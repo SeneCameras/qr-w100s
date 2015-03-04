@@ -18,6 +18,11 @@ class WalkeraCommandThread(threading.Thread):
    def __init__(self):
       threading.Thread.__init__(self)
   
+      self.stopping = threading.Event()
+      self.FPS = 35
+      self.data  = bytearray(18)
+      self.zero()
+  
       self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
       self.s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1) #disable Nagle          
       self.s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 0)   #disable kernel buffer
@@ -32,14 +37,7 @@ class WalkeraCommandThread(threading.Thread):
             return
          
       self.s.setblocking(0)
-      
-      self.stopping = threading.Event()
-      
-      self.FPS = 35
-      
-      self.data  = bytearray(18)
-      self.zero()
-      
+
       print "*****************  Walkera Control Thread Initialized  *****************"
       sys.stdout.flush()
 
