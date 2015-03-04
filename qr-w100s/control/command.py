@@ -2,6 +2,10 @@
 
 from PySide import QtGui, QtCore
 
+if __name__ == '__main__' and __package__ is None:
+    from os import sys, path
+    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+    
 from input.video import VideoTestWidget, WalkeraVideoProcess
 
 import socket
@@ -17,7 +21,16 @@ class WalkeraCommandThread(threading.Thread):
       self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
       self.s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1) #disable Nagle          
       self.s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 0)   #disable kernel buffer
-      self.s.connect(("192.168.10.1", 2001))
+      self.s.settimeout(0.5) #don't wait if we're not connected to a Walkera network
+      try:
+         self.s.connect(("192.168.10.1", 2001))
+      except Exception, e:
+         if ("%s"%e).find("timed out") == 0:
+            print "[Socket Connection Timeout] You may not be connected to the Walkera WiFi network..."
+            sys.stdout.flush()
+            self.s = None
+            return
+         
       self.s.setblocking(0)
       
       self.stopping = threading.Event()
@@ -77,7 +90,7 @@ class WalkeraCommandThread(threading.Thread):
          self.s.send(self.data)
          time.sleep(1.0/self.FPS) # breaks over 60 FPS based on testing...
 
-      print "*****************  Walkera Control Thread Now Stopped     *****************"
+      print "*****************  Walkera Control Thread Now Stopped  *****************"
       sys.stdout.flush()
       
       self.zero()
@@ -122,22 +135,24 @@ if __name__ == '__main__':
    
    widget     = VideoTestWidget(WalkeraVideoProcess)
    controller = WalkeraCommandThread()
-   driver     = TestDriver(controller)
-
-   controller.start()
-   widget.managed_objects.append(controller)
+   if (controller.s is not None):
+      driver     = TestDriver(controller)
    
-   t1 = QtCore.QTimer()
-   t1.timeout.connect(driver.pulse)
-   t1.start(1000.0/0.7)
-   
-   t2 = QtCore.QTimer()
-   t2.timeout.connect(driver.boostFPS)
-   t2.start(1000.0/0.2)
+      controller.start()
+      widget.managed_objects.append(controller)
+      
+      t1 = QtCore.QTimer()
+      t1.timeout.connect(driver.pulse)
+      t1.start(1000.0/0.7)
+      
+      t2 = QtCore.QTimer()
+      t2.timeout.connect(driver.boostFPS)
+      t2.start(1000.0/0.2)
    
    app.aboutToQuit.connect(widget.shutdown)
    
    widget.show()
+   
    sys.exit(app.exec_())
    
    

@@ -67,7 +67,7 @@ class ProcessorWidget(QtGui.QWidget):
             o.reset()
    def shutdown(self):
       for o in self.managed_objects:
-         print o
+         #print o
          if (o is not None):
             o.shutdown()
             try: # see if terminate() exists
