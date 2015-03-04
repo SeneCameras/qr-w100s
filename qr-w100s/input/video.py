@@ -160,6 +160,7 @@ class VideoTestWidget(QtGui.QWidget):
       self.process = input_process_class(self.process_output_queue)
       self.process.start()
       
+      self.managed_objects = []
       
       layout = QtGui.QGridLayout()
       self.pixmap = QtGui.QLabel()
@@ -190,7 +191,9 @@ class VideoTestWidget(QtGui.QWidget):
    def shutdown(self):
       self.process.shutdown()
       self.process.terminate()
-
+      for o in self.managed_objects:
+         o.shutdown()
+         
 
 if __name__ == '__main__':
    app = QtGui.QApplication(sys.argv)

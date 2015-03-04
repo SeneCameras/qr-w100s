@@ -15,6 +15,8 @@ from vision.facedetect import FaceDetectProcess
 from input.joystick import JoystickProcess
 from input.video import SystemCamera1VideoProcess, WalkeraVideoProcess
 
+from control.command import WalkeraCommandThread
+
 import numpy as np
 import pyqtgraph as pg
 
@@ -53,25 +55,28 @@ class ProcessorWidget(QtGui.QWidget):
       return self.process.isAwake()
    def sleep(self):
       for o in self.managed_objects:
-         if o.isAwake():
+         if (o is not None) and o.isAwake():
             o.sleep()
    def wake(self):
       for o in self.managed_objects:
-         if not o.isAwake():
+         if (o is not None) and not o.isAwake():
             o.wake()
    def reset(self):
       for o in self.managed_objects:
-         o.reset()
+         if (o is not None):
+            o.reset()
    def shutdown(self):
       for o in self.managed_objects:
-         o.shutdown()
-         try: # see if terminate() exists
-            o.terminate
-         except NameError:
-            pass
-         else:
-            time.sleep(0.1)
-            o.terminate()
+         print o
+         if (o is not None):
+            o.shutdown()
+            try: # see if terminate() exists
+               o.terminate
+            except (NameError, AttributeError):
+               pass
+            else:
+               time.sleep(0.1)
+               o.terminate()
 
 # maintain a simple iir filter on instantaneous frames per second
 class fps():
@@ -313,52 +318,19 @@ class TimeYQueuePlotWidget(pg.PlotWidget):
    def shutdown(self):
       pass
 
-class WalkeraCommand():
-   def __init__(self):
-      self.data  = bytearray(18)
-      self.zero() #calls update
-   def zero(self):
-      self.switch   = 0x61
-      self.thrust   = 0x02bf #min value
-      self.yaw      = 0x044a
-      self.pitch    = 0x044a
-      self.roll     = 0x044a
-      self.update()
-   def update(self):
-      self.data[0] = self.switch #enable code
-      self.data[1] = self.thrust >> 8
-      self.data[2] = self.thrust & 0xff
-      self.data[3] = self.yaw >> 8
-      self.data[4] = self.yaw & 0xff
-      self.data[5] = self.pitch >> 8
-      self.data[6] = self.pitch & 0xff
-      self.data[7] = self.roll >> 8
-      self.data[8] = self.roll & 0xff
-      self.data[9] = self.roll >> 8
-      self.data[10] = self.roll & 0xff
-      self.data[11] = self.thrust >> 8
-      self.data[12] = self.thrust & 0xff
-      self.data[13] = self.yaw >> 8
-      self.data[14] = self.yaw & 0xff
-      self.data[15] = self.pitch >> 8
-      self.data[16] = self.pitch & 0xff
-      self.data[17] = sum(self.data[0:17]) & 0xFF
-   def getString(self):
-      return binascii.hexlify(self.data)
-
 # connects Joystick controls to drone flight vectors
 class FlightControlWidget(ProcessorWidget):
-   def __init__(self, target_FPS = 30.0):
+   def __init__(self, target_FPS = 50.0):
       self.process_class = JoystickProcess;
       super(FlightControlWidget, self).__init__(self.process_class)
       
       self.joystick_process_output_queue  = multiprocessing.Queue(maxsize=1)
       self.start( input_queue = None, output_queue = self.joystick_process_output_queue)
+      
+      self.controller = None #turn this on later
 
       self.plot_x_size = 430
       self.plot_y_size = 240
-
-      self.command = WalkeraCommand()
 
       layout = QtGui.QGridLayout()
 
@@ -370,7 +342,7 @@ class FlightControlWidget(ProcessorWidget):
       self.thrust_widget = TimeYQueuePlotWidget(self.thrust_queue)
       self.manageSleepableWidget(self.thrust_widget)
       self.thrust_widget.setMaximumSize(self.plot_x_size,self.plot_y_size)
-      self.thrust_widget.setYRange(-0.1, 1.1)
+      self.thrust_widget.setYRange(-1.1, 1.1)
       self.thrust_widget.setLabel('left', 'Setpoint', units='au')
       layout.addWidget(self.thrust_widget, 1, 0)
       
@@ -410,9 +382,9 @@ class FlightControlWidget(ProcessorWidget):
       self.roll_widget.setLabel('left', 'Setpoint', units='au')
       layout.addWidget(self.roll_widget, 3, 1)
 
-      self.command_widget = QtGui.QLabel()
-      self.command_widget.setText("command to send: ")
-      layout.addWidget(self.command_widget, 4, 0)
+      self.command_label_widget = QtGui.QLabel()
+      self.command_label_widget.setText("command to send: ")
+      layout.addWidget(self.command_label_widget, 4, 0)
 
       self.enable_toggle = QtGui.QCheckBox("Enable Control")
       layout.addWidget(self.enable_toggle, 4, 1)
@@ -427,96 +399,52 @@ class FlightControlWidget(ProcessorWidget):
       self.process_joystick_inputs.start(1000.0/target_FPS)
       
       self.FPS = fps()
-      
-   def shutdown(self): #override parent so we can close the socket
-      for o in self.managed_objects:
-         o.shutdown()
-         try: # see if terminate() exists
-            o.terminate
-         except NameError:
-            pass
-         else:
-            time.sleep(0.1)
-            o.terminate()
-      try:
-         if (self.socket is not None):
-            self.command.zero()
-            self.socket.send(self.command.data)
-            self.socket.close()
-            self.socket = None
-      except Exception, e:
-         if ("%s" % e).find("10057") < 0:
-            print "enableToggleChanged: %s" % (e)
-            sys.stdout.flush()
 
    def enableToggleChanged(self):
-      try:
-         if self.enable_toggle.isChecked() and (self.socket is None):
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1) #disable Nagle          
-            #self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 0) #disable kernel buffer
-            self.socket.connect(("192.168.10.1", 2001))
-            #self.socket.setblocking(0)
-            self.command_widget.setText(self.command.getString() + " ...opened!...")
-         else:
-            self.command.zero()
-            self.socket.send(self.command.data)
-            self.socket.close()
-            self.socket = None
-            self.command_widget.setText(self.command.getString() + " ...closed!...")
-            
-      except Exception, e:
-         if ("%s" % e).find("10057") < 0:
-            print "enableToggleChanged: %s" % (e)
-            sys.stdout.flush()
-
+      if self.enable_toggle.isChecked() and (self.controller is None):
+         self.controller = WalkeraCommandThread()
+         self.controller.start()
+         self.manageSleepableWidget(self.controller)
+         self.command_label_widget.setText(self.controller.getString() + " ...just opened!...")
+      else:
+         self.controller.shutdown()
+         self.controller.join()
+         self.controller = None
+         self.command_label_widget.setText("controller closed!...")
+         
    def processJoystickInput(self):
       try:
          tstamp, data = self.joystick_process_output_queue.get(False)
-         
-         if (data is not None):
-            try: #always send data first so we're not rate limited by plot updates
-               data[1] = -data[1]
-               if data[1] < 0: #we only use the top half of the joystick for throttle
-                  data[1] = 0
-               self.command.thrust = int( data[1] * (0x05dc-0x02bf) ) + 0x02bf
-               self.thrust_queue.put((tstamp, data[1]), False)
+         if self.controller is not None and data is not None:
+            
+            self.controller.setControlLevels(thrust=data[1], pitch=data[3], roll=data[2], yaw=data[0])
+
+            try:
+               self.thrust_queue.put((tstamp, -data[1]), False) #plot reversed
             except Queue.Full:
                pass
 
             try:
-               self.command.pitch = int( (1 - data[3]) * ((0x0640-0x025b)>>1)) + 0x025b
                self.pitch_queue.put((tstamp, data[3]), False)
             except Queue.Full:
                pass
 
             try:
-               self.command.roll = int( (1 - data[2]) * ((0x0640-0x025b)>>1)) + 0x025b
                self.roll_queue.put((tstamp, data[2]), False)
             except Queue.Full:
                pass
 
             try:
-               self.command.yaw = int( (1 - data[0]) * ((0x0640-0x025b)>>1)) + 0x025b
                self.yaw_queue.put((tstamp, data[0]), False)
             except Queue.Full:
                pass
             
-            if self.socket is not None:
-               if self.enable_toggle.isChecked():
-                  self.command.update()
-                  self.socket.send(self.command.data)
-                  self.command_widget.setText(self.command.getString())
-                  self.FPS.update()
-                  #self.FPS.log()              
+            self.FPS.update()
+            #self.FPS.log()              
                
       except Queue.Empty:
          pass
-      except Exception, e:
-         if ("%s" % e).find("10057") < 0:
-            print "enableToggleChanged: %s" % (e)
-            sys.stdout.flush()
-         
+   
 
 class WalkeraGUI(QtGui.QWidget):
    def __init__(self):
