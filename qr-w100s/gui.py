@@ -11,6 +11,7 @@ import Queue #needed separately for the Empty exception
 from vision.identity import IdentityProcess
 from vision.lk import LKProcess
 from vision.facedetect import FaceDetectProcess
+from vision.calibration import CameraCalibrator
 
 from input.joystick import JoystickProcess
 from input.video import SystemCamera1VideoProcess, WalkeraVideoProcess
@@ -110,7 +111,115 @@ class fps():
       sys.stdout.flush()
    def get(self):
       return self.FPS
+   
+# manages a stack of snapshots
+class VideoSnapshotWidget(QtGui.QWidget):
+   def __init__(self):
+      super(VideoSnapshotWidget, self).__init__()
 
+      self.snapshot_input_queue = multiprocessing.Queue(maxsize=1)
+      self.snapshot_images = []
+      self.snapshot_labels = []
+      self.active_index = -1
+
+      layout = QtGui.QGridLayout()
+      
+      cycle_left_button = QtGui.QPushButton('<', self)
+      cycle_left_button.clicked.connect(self.cycleLeft)
+      layout.addWidget(cycle_left_button, 0, 0)
+      cycle_left_button.resize(cycle_left_button.sizeHint())
+
+      self.pixmap = QtGui.QLabel()
+      self.pixmap.setMinimumSize(320,240)
+      self.pixmap.setMaximumSize(320,240)
+      self.pixmap.setScaledContents(True)
+      layout.addWidget(self.pixmap, 0, 1)
+
+      cycle_right_button = QtGui.QPushButton('>', self)
+      cycle_right_button.clicked.connect(self.cycleRight)
+      layout.addWidget(cycle_right_button, 0, 2)
+      cycle_right_button.resize(cycle_right_button.sizeHint())
+      
+      self.current_snapshot_label = QtGui.QLabel()
+      self.current_snapshot_label.setText("DateTime - Frame 0")
+      layout.addWidget(self.current_snapshot_label, 1, 0, 1, 3)
+      
+      collect_snapshot_button = QtGui.QPushButton('Take Snapshot', self)
+      collect_snapshot_button.clicked.connect(self.collectSnapshot)
+      collect_snapshot_button.resize(collect_snapshot_button.sizeHint())
+      layout.addWidget(collect_snapshot_button, 2, 0, 1, 3)
+      
+      drop_snapshot_button = QtGui.QPushButton('Drop Snapshot', self)
+      drop_snapshot_button.clicked.connect(self.dropSnapshot)
+      drop_snapshot_button.resize(drop_snapshot_button.sizeHint())
+      layout.addWidget(drop_snapshot_button, 3, 0, 1, 3)
+      
+      process_snapshots_button = QtGui.QPushButton('Calibrate Lens Using These Snapshots', self)
+      process_snapshots_button.clicked.connect(self.processSnapshots)
+      process_snapshots_button.resize(process_snapshots_button.sizeHint())
+      layout.addWidget(process_snapshots_button, 4, 0, 1, 3)
+      
+      self.calibration_result_label = QtGui.QLabel()
+      self.calibration_result_label.setText(" ... waiting to perform calibration ... ")
+      layout.addWidget(self.calibration_result_label, 5, 0, 1, 3)
+      
+      self.setLayout(layout)
+      
+      self.calibrator = CameraCalibrator()
+      self.image_points = []
+      
+   def collectSnapshot(self):
+      self.image_points = []
+      try:
+         tstamp, cv_img = self.snapshot_input_queue.get(False)
+         self.snapshot_images.append(cv_img.copy())
+         self.snapshot_labels.append(tstamp.strftime("%A, %B %d, %Y . %I:%M:%f %p"))
+         self.active_index = len(self.snapshot_images) - 1
+         self.updateSnapshot()
+      except Queue.Empty:
+         printnow("No snapshots are available!")
+   def dropSnapshot(self):
+      self.image_points = []
+      del self.snapshot_images[self.active_index]
+      if self.active_index == len(self.snapshot_images):
+         self.active_index -= 1
+      self.updateSnapshot()
+   def processSnapshots(self):
+      self.image_points = []
+      for image in self.snapshot_images:
+         self.image_points.append(self.calibrator.findCorners(image))
+      self.calibrator.calibrate(self.image_points)
+      self.updateSnapshot(self)
+   def cycleRight(self):
+      if self.active_index < ( len(self.snapshot_images)-1 ):
+         self.active_index += 1
+         self.updateSnapshot()
+   def cycleLeft(self):
+      if self.active_index > 0:
+         self.active_index -= 1
+         self.updateSnapshot()
+   def updateSnapshot(self, image_points = None):
+      if self.active_index >= 0:
+         if self.active_index < len(self.snapshot_images):
+            
+            cv_img = self.snapshot_images[self.active_index]
+            
+            if len(self.image_points) > 0:
+               cv_img = self.calibrator.drawCorners(cv_img,self.image_points[self.active_index])
+               
+            if len(cv_img.shape) > 2:
+               height, width, bytesPerComponent = cv_img.shape
+               bytesPerLine = bytesPerComponent * width;
+               qimage = QtGui.QImage(cv_img.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
+            else:
+               height, width = cv_img.shape
+               qimage = QtGui.QImage(cv_img.data, width, height, QtGui.QImage.Format_Indexed8)
+            
+            self.pixmap.setPixmap(QtGui.QPixmap.fromImage(qimage))
+            self.current_snapshot_label.setText("[#%d] : "%self.active_index + self.snapshot_labels[self.active_index])
+   def shutdown(self):
+      self.snapshot_input_queue.cancel_join_thread()
+         
 # manages a single video stream processor
 class VideoProcessorWidget(ProcessorWidget):
    def __init__(self, process_class, process_label="", FPS_plot = True, target_FPS = 30.0):
@@ -177,6 +286,7 @@ class VideoManagerWidget(QtGui.QWidget):
       super(VideoManagerWidget, self).__init__()
       
       self.managed_processor_widgets = []
+      self.managed_snapshot_widgets = []
       
       self.camera_queue  = multiprocessing.Queue(maxsize=1)
       self.camera_process = SystemCamera1VideoProcess(self.camera_queue)
@@ -211,10 +321,15 @@ class VideoManagerWidget(QtGui.QWidget):
       # default to cam1 video
       self.r0.setChecked(True)
 
-   def createVideoProcessorWidget(self, process_class, process_label=""):
-      new_vp_widget = VideoProcessorWidget(process_class, process_label)
+   def createVideoProcessorWidget(self, process_class, process_label="",  FPS_plot = True):
+      new_vp_widget = VideoProcessorWidget(process_class, process_label, FPS_plot)
       self.managed_processor_widgets.append(new_vp_widget)
       return new_vp_widget
+   
+   def createVideoSnapshotWidget(self):
+      new_vs_widget = VideoSnapshotWidget()
+      self.managed_snapshot_widgets.append(new_vs_widget)
+      return new_vs_widget
    
    def getImage(self):
       if self.src_type_group.checkedId() == 2: #no video
@@ -238,7 +353,14 @@ class VideoManagerWidget(QtGui.QWidget):
             w.process_input_queue.put((tstamp, cv_img), False)
          except Queue.Full:
             pass
-   
+         
+      for w in self.managed_snapshot_widgets:
+         try:
+            w.snapshot_input_queue.put((tstamp, cv_img), False)
+         except Queue.Full:
+            w.snapshot_input_queue.get()
+            w.snapshot_input_queue.put((tstamp, cv_img), False)
+
    def switchToCamera(self):
       for w in self.managed_processor_widgets:
          w.reset()
@@ -249,6 +371,9 @@ class VideoManagerWidget(QtGui.QWidget):
 
    def shutdown(self):
       for w in self.managed_processor_widgets:
+         w.shutdown()
+      
+      for w in self.managed_snapshot_widgets:
          w.shutdown()
       
       self.camera_process.shutdown()
@@ -507,6 +632,19 @@ class WalkeraGUI(QtGui.QWidget):
       self.flight_control_widget = FlightControlWidget(gui=self)
       self.objects_to_shutdown_at_quit.append(self.flight_control_widget)
       self.tabs.addTab(self.flight_control_widget, "Flight Controls")
+      
+      # calibration tab
+      tab3 = QtGui.QWidget()
+      tab3_layout = QtGui.QGridLayout()
+      
+      self.calibration_video_widget = self.vm.createVideoProcessorWidget(IdentityProcess, process_label="Calibration Video", FPS_plot = False)
+      tab3_layout.addWidget(self.calibration_video_widget, 0, 0)
+      
+      self.calibration_snapshot_widget = self.vm.createVideoSnapshotWidget()
+      tab3_layout.addWidget(self.calibration_snapshot_widget, 0, 1)
+      
+      tab3.setLayout(tab3_layout)
+      self.tabs.addTab(tab3, "Calibration")
       
       #main window layout
       window_layout = QtGui.QHBoxLayout()
