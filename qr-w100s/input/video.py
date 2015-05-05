@@ -16,17 +16,17 @@ def printnow(string):
    print string
    sys.stdout.flush()
 
-class SystemCamera1VideoProcess(multiprocessing.Process):
+class SystemCameraVideoProcess(multiprocessing.Process):
    def __init__(self, outputqueue):
       multiprocessing.Process.__init__(self)
       self.outputqueue = outputqueue
       self.exit = multiprocessing.Event()
       self.sleeping = multiprocessing.Event()
-
-   def run(self):
+      self.camera_id = 0
       
-      camera = cv2.VideoCapture(1)
-
+   def run(self):
+      camera = cv2.VideoCapture(self.camera_id)
+      
       while not self.exit.is_set():
          
          if self.sleeping.is_set():
@@ -61,6 +61,28 @@ class SystemCamera1VideoProcess(multiprocessing.Process):
       
    def wake(self):
       self.sleeping.clear()
+      
+
+class SystemCamera0VideoProcess(SystemCameraVideoProcess):
+   def __init__(self, outputqueue):
+      SystemCameraVideoProcess.__init__(self, outputqueue)
+      self.camera_id = 0
+      
+class SystemCamera1VideoProcess(SystemCameraVideoProcess):
+   def __init__(self, outputqueue):
+      SystemCameraVideoProcess.__init__(self, outputqueue)
+      self.camera_id = 1
+      
+class SystemCamera2VideoProcess(SystemCameraVideoProcess):
+   def __init__(self, outputqueue):
+      SystemCameraVideoProcess.__init__(self, outputqueue)
+      self.camera_id = 2
+      
+class SystemCamera3VideoProcess(SystemCameraVideoProcess):
+   def __init__(self, outputqueue):
+      SystemCameraVideoProcess.__init__(self, outputqueue)
+      self.camera_id = 3
+      
 
 class WalkeraVideoProcess(multiprocessing.Process):
    
@@ -203,10 +225,17 @@ if __name__ == '__main__':
    WalkeraVideoProcess
    '''
    
-   widget = VideoTestWidget(WalkeraVideoProcess)
+   widget = QtGui.QWidget()
+   layout = QtGui.QGridLayout()
+   vid0 = VideoTestWidget(SystemCamera0VideoProcess)
+   vid1 = VideoTestWidget(SystemCamera1VideoProcess)
+   layout.addWidget(vid0, 0, 0)
+   layout.addWidget(vid1, 0, 1)
+   widget.setLayout(layout)
 
-   app.aboutToQuit.connect(widget.shutdown)
+   vid0.managed_objects.append(vid1)
+   
+   app.aboutToQuit.connect(vid0.shutdown)
 
    widget.show()
-
    sys.exit(app.exec_())
