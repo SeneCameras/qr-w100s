@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys
+import sys,os
 from PySide import QtGui, QtCore
 import cv2
 import time, datetime
@@ -14,7 +14,7 @@ from vision.facedetect import FaceDetectProcess
 from vision.calibration import CameraCalibrator
 
 from input.joystick import JoystickProcess
-from input.video import SystemCamera1VideoProcess, WalkeraVideoProcess
+from input.video import SystemCamera0VideoProcess, SystemCamera1VideoProcess, WalkeraVideoProcess
 
 from control.command import WalkeraCommandThread
 
@@ -111,15 +111,15 @@ class fps():
       sys.stdout.flush()
    def get(self):
       return self.FPS
-   
-# manages a stack of snapshots
+
+# manages a stack of snapshots for calibration purposes
 class VideoSnapshotWidget(QtGui.QWidget):
    def __init__(self):
       super(VideoSnapshotWidget, self).__init__()
 
       self.snapshot_input_queue = multiprocessing.Queue(maxsize=1)
       self.snapshot_images = []
-      self.snapshot_labels = []
+      self.snapshot_tstamps = []
       self.active_index = -1
 
       layout = QtGui.QGridLayout()
@@ -179,29 +179,61 @@ class VideoSnapshotWidget(QtGui.QWidget):
       try:
          tstamp, cv_img = self.snapshot_input_queue.get(False)
          self.snapshot_images.append(cv_img.copy())
-         self.snapshot_labels.append(tstamp.strftime("%A, %B %d, %Y . %I:%M:%f %p"))
+         self.snapshot_tstamps.append(tstamp)
          self.active_index = len(self.snapshot_images) - 1
          self.updateSnapshot()
       except Queue.Empty:
          printnow("No snapshots are available!")
-   def saveSnapshots(self):    
+   def saveSnapshots(self): 
+      directory = QtGui.QFileDialog.getExistingDirectory(self, "Save Calibration Images", ".", QtGui.QFileDialog.ShowDirsOnly)
+      if directory:
+          print "Saving calibration images to %s"%directory
       for i, image in enumerate(self.snapshot_images):
-         label = self.snapshot_labels
-         print "save:", label
+         epoch = datetime.datetime.utcfromtimestamp(0)
+         delta = self.snapshot_tstamps[i] - epoch
+         filename = "%d"%(delta.total_seconds()*1000) + ".png"
+         try:
+            cv2.imwrite( os.path.join(directory, filename) , self.snapshot_images[i])
+         except Exception  as e:
+            print 'Exception occurred, value:', e.value
+         else:
+            print 'SAVE FILE [%d]'%i, os.path.join(directory, filename)
    def loadSnapshots(self):
-      print "load snapshots!"
+      directory = QtGui.QFileDialog.getExistingDirectory(self, "Load Calibration Images", ".")
+      if directory:
+          print "Loading calibration images from %s"%directory
+      i = 0
+      self.snapshot_images = []
+      self.snapshot_tstamps = []
+      for filename in os.listdir(directory):
+         if filename.endswith(".png"):
+            print 'LOAD FILE [%d]'%i, os.path.join(directory, filename)
+            i += 1
+            self.snapshot_images.append(cv2.imread(os.path.join(directory, filename)))
+            milliseconds = os.path.splitext(os.path.basename(filename))[0]
+            self.snapshot_tstamps.append(datetime.datetime.utcfromtimestamp(float(milliseconds)/1000.0))
+      self.active_index = len(self.snapshot_images) - 1 
+      self.updateSnapshot()
    def dropSnapshot(self):
       self.image_points = []
-      del self.snapshot_images[self.active_index]
-      if self.active_index == len(self.snapshot_images):
-         self.active_index -= 1
-      self.updateSnapshot()
+      if len(self.snapshot_images) > 0:
+         del self.snapshot_images[self.active_index]
+         del self.snapshot_tstamps[self.active_index]
+         if self.active_index == len(self.snapshot_images):
+            self.active_index -= 1
+         if self.active_index < 0:
+            self.active_index = 0
+         if len(self.snapshot_images)<1:
+            self.pixmap.setPixmap(None)
+            self.current_snapshot_label.setText("")
+         else:
+            self.updateSnapshot()
    def processSnapshots(self):
       self.image_points = []
       for image in self.snapshot_images:
          self.image_points.append(self.calibrator.findCorners(image))
       cameraMatrix, distCoeffs = self.calibrator.calibrate(self.image_points)
-      if cameraMatrix is not None and disCoeffs is not None:
+      if cameraMatrix is not None and distCoeffs is not None:
           print cameraMatrix, distCoeffs
           #printnow((len(image_points), cameraMatrix[0,0], cameraMatrix[1,1], cameraMatrix[0,2], cameraMatrix[1,2], distCoeffs[0][0], distCoeffs[0][1], distCoeffs[0][2], distCoeffs[0][3], distCoeffs[0][4]))
       self.updateSnapshot(self)
@@ -231,7 +263,8 @@ class VideoSnapshotWidget(QtGui.QWidget):
                qimage = QtGui.QImage(cv_img.data, width, height, QtGui.QImage.Format_Indexed8)
             
             self.pixmap.setPixmap(QtGui.QPixmap.fromImage(qimage))
-            self.current_snapshot_label.setText("[#%d] : "%self.active_index + self.snapshot_labels[self.active_index])
+            label = self.snapshot_tstamps[self.active_index].strftime("%A, %B %d, %Y . %I:%M:%f %p")
+            self.current_snapshot_label.setText("[#%d] : "%self.active_index + label)
    def shutdown(self):
       self.snapshot_input_queue.cancel_join_thread()
          
@@ -653,10 +686,12 @@ class WalkeraGUI(QtGui.QWidget):
       tab3_layout = QtGui.QGridLayout()
       
       self.calibration_video_widget = self.vm.createVideoProcessorWidget(IdentityProcess, process_label="Calibration Video", FPS_plot = False)
-      tab3_layout.addWidget(self.calibration_video_widget, 0, 0)
+      tab3_layout.addWidget(self.calibration_video_widget, 0, 0, 1, 1) #row, col, rspan, cspan
+      
+      tab3_layout.addWidget(QtGui.QWidget(), 1, 0, 1, 1)
       
       self.calibration_snapshot_widget = self.vm.createVideoSnapshotWidget()
-      tab3_layout.addWidget(self.calibration_snapshot_widget, 0, 1)
+      tab3_layout.addWidget(self.calibration_snapshot_widget, 0, 1, 2, 1)
       
       tab3.setLayout(tab3_layout)
       self.tabs.addTab(tab3, "Calibration")
