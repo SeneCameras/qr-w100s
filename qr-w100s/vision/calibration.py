@@ -22,23 +22,7 @@ class CameraCalibrator():
                            [    0.         , 337.41454138 ,    91.37560863],
                            [    0.         ,   0.         ,     1.        ]]
       self.distortion_coeffs =  [-0.03933975,  0.10248906, -0.02188526, -0.0065168,  -0.12065639]
-      
-      ''' again...
-      [[ 317.55744649    0.          151.38193851]
-      [   0.          319.7940645   118.97117154]
-      [   0.            0.            1.        ]]
-     [[-0.07489437  0.32156917 -0.00979001  0.00162971 -0.82121261]]
-     
-     [[ 320.72490556    0.          159.21049723]
-      [   0.          323.14303127  113.12560677]
-      [   0.            0.            1.        ]]
-      
-      [[  99.96513067    0.          159.49998559]
-      [   0.          101.88542444  119.50000816]
-      [   0.            0.            1.        ]]
-      
-      '''
-
+   
    def findCorners(self, cv_img):
       retval, corners = cv2.findChessboardCorners(cv_img, (self.points_per_row, self.points_per_column))
       if retval:
@@ -62,6 +46,7 @@ class CameraCalibrator():
       try:
          retval, cameraMatrix, distCoeffs, rvecs, tvecs = cv2.calibrateCamera(object_points, image_points, image_size)
          printnow((len(image_points), cameraMatrix[0,0], cameraMatrix[1,1], cameraMatrix[0,2], cameraMatrix[1,2], distCoeffs[0][0], distCoeffs[0][1], distCoeffs[0][2], distCoeffs[0][3], distCoeffs[0][4]))
+         return cameraMatrix, distCoeffs
       except Exception, e:
          pass
       #consider passing parameter string back?

@@ -26,10 +26,10 @@ import socket
 
 import inspect
 def debug():
-    (frame, filename, line_number,
-     function_name, lines, index) = inspect.getouterframes(inspect.currentframe())[1]
-    print(frame, filename, line_number, function_name, lines, index)
-    sys.stdout.flush()
+   (frame, filename, line_number,
+    function_name, lines, index) = inspect.getouterframes(inspect.currentframe())[1]
+   print(frame, filename, line_number, function_name, lines, index)
+   sys.stdout.flush()
 def printnow(string):
    print string
    sys.stdout.flush()
@@ -154,14 +154,20 @@ class VideoSnapshotWidget(QtGui.QWidget):
       drop_snapshot_button.resize(drop_snapshot_button.sizeHint())
       layout.addWidget(drop_snapshot_button, 3, 0, 1, 3)
       
-      process_snapshots_button = QtGui.QPushButton('Calibrate Lens Using These Snapshots', self)
+      process_snapshots_button = QtGui.QPushButton('Calibrate lens using these Snapshots', self)
       process_snapshots_button.clicked.connect(self.processSnapshots)
       process_snapshots_button.resize(process_snapshots_button.sizeHint())
       layout.addWidget(process_snapshots_button, 4, 0, 1, 3)
       
-      self.calibration_result_label = QtGui.QLabel()
-      self.calibration_result_label.setText(" ... waiting to perform calibration ... ")
-      layout.addWidget(self.calibration_result_label, 5, 0, 1, 3)
+      save_snapshots_button = QtGui.QPushButton('Save this set of Snapshots', self)
+      save_snapshots_button.clicked.connect(self.saveSnapshots)
+      save_snapshots_button.resize(save_snapshots_button.sizeHint())
+      layout.addWidget(save_snapshots_button, 5, 0, 1, 3)
+      
+      load_snapshots_button = QtGui.QPushButton('Load a saved set of Snapshots', self)
+      load_snapshots_button.clicked.connect(self.loadSnapshots)
+      load_snapshots_button.resize(load_snapshots_button.sizeHint())
+      layout.addWidget(load_snapshots_button, 6, 0, 1, 3)
       
       self.setLayout(layout)
       
@@ -178,6 +184,12 @@ class VideoSnapshotWidget(QtGui.QWidget):
          self.updateSnapshot()
       except Queue.Empty:
          printnow("No snapshots are available!")
+   def saveSnapshots(self):    
+      for i, image in enumerate(self.snapshot_images):
+         label = self.snapshot_labels
+         print "save:", label
+   def loadSnapshots(self):
+      print "load snapshots!"
    def dropSnapshot(self):
       self.image_points = []
       del self.snapshot_images[self.active_index]
@@ -188,7 +200,10 @@ class VideoSnapshotWidget(QtGui.QWidget):
       self.image_points = []
       for image in self.snapshot_images:
          self.image_points.append(self.calibrator.findCorners(image))
-      self.calibrator.calibrate(self.image_points)
+      cameraMatrix, distCoeffs = self.calibrator.calibrate(self.image_points)
+      if cameraMatrix is not None and disCoeffs is not None:
+          print cameraMatrix, distCoeffs
+          #printnow((len(image_points), cameraMatrix[0,0], cameraMatrix[1,1], cameraMatrix[0,2], cameraMatrix[1,2], distCoeffs[0][0], distCoeffs[0][1], distCoeffs[0][2], distCoeffs[0][3], distCoeffs[0][4]))
       self.updateSnapshot(self)
    def cycleRight(self):
       if self.active_index < ( len(self.snapshot_images)-1 ):
