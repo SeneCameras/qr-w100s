@@ -113,9 +113,9 @@ class fps():
       return self.FPS
 
 # manages a stack of snapshots for calibration purposes
-class VideoSnapshotWidget(QtGui.QWidget):
+class VideoCalibrationWidget(QtGui.QWidget):
    def __init__(self):
-      super(VideoSnapshotWidget, self).__init__()
+      super(VideoCalibrationWidget, self).__init__()
 
       self.snapshot_input_queue = multiprocessing.Queue(maxsize=1)
       self.snapshot_images = []
@@ -174,6 +174,12 @@ class VideoSnapshotWidget(QtGui.QWidget):
       self.calibrator = CameraCalibrator()
       self.image_points = []
       
+      self.cameraMatrix = [[400,0,160],[400,1,120],[0,0,1]] #guess at f=400pixels
+      self.distCoeffs = [0,0,0,0,0] #k1, k2, p1, p2, k3
+      
+   def undistort(self, cv_img):
+      return cv2.undistort(cv_img, self.cameraMatrix, self.distCoeffs)
+
    def collectSnapshot(self):
       self.image_points = []
       try:
@@ -234,8 +240,8 @@ class VideoSnapshotWidget(QtGui.QWidget):
          self.image_points.append(self.calibrator.findCorners(image))
       cameraMatrix, distCoeffs = self.calibrator.calibrate(self.image_points)
       if cameraMatrix is not None and distCoeffs is not None:
-          print cameraMatrix, distCoeffs
-          #printnow((len(image_points), cameraMatrix[0,0], cameraMatrix[1,1], cameraMatrix[0,2], cameraMatrix[1,2], distCoeffs[0][0], distCoeffs[0][1], distCoeffs[0][2], distCoeffs[0][3], distCoeffs[0][4]))
+          self.cameraMatrix = cameraMatrix
+          self.distCoeffs = distCoeffs
       self.updateSnapshot(self)
    def cycleRight(self):
       if self.active_index < ( len(self.snapshot_images)-1 ):
@@ -336,28 +342,48 @@ class VideoManagerWidget(QtGui.QWidget):
       self.managed_processor_widgets = []
       self.managed_snapshot_widgets = []
       
-      self.camera_queue  = multiprocessing.Queue(maxsize=1)
-      self.camera_process = SystemCamera1VideoProcess(self.camera_queue)
-      self.camera_process.start()
+      self.camera_queue0  = multiprocessing.Queue(maxsize=1)
+      self.camera_process0 = SystemCamera0VideoProcess(self.camera_queue0)
+      self.camera_process0.start()
+      
+      self.camera_queue1  = multiprocessing.Queue(maxsize=1)
+      self.camera_process1 = SystemCamera1VideoProcess(self.camera_queue1)
+      self.camera_process1.start()
    
       self.walkera_queue   = multiprocessing.Queue(maxsize=1)
       self.walkera_process = WalkeraVideoProcess(self.walkera_queue)
       self.walkera_process.start()
       
+      layout = QtGui.QGridLayout()
       #selector for video input type
-      layout = QtGui.QHBoxLayout()
       self.src_type_group = QtGui.QButtonGroup()
-      self.r0=QtGui.QRadioButton("Camera(1)")
+      self.r0=QtGui.QRadioButton("Camera(0)")
       self.src_type_group.addButton(self.r0, 0)
-      self.r0.clicked.connect(self.switchToCamera)
-      self.r1=QtGui.QRadioButton("Walkera Wifi")
+      self.r0.clicked.connect(self.switchToCamera0)
+      self.r1=QtGui.QRadioButton("Camera(1)")
       self.src_type_group.addButton(self.r1, 1)
-      self.r1.clicked.connect(self.switchToWalkera)
-      self.r2=QtGui.QRadioButton("None")
+      self.r1.clicked.connect(self.switchToCamera1)
+      self.r2=QtGui.QRadioButton("Walkera Wifi")
       self.src_type_group.addButton(self.r2, 2)
-      layout.addWidget(self.r0)
-      layout.addWidget(self.r1)
-      layout.addWidget(self.r2)
+      self.r2.clicked.connect(self.switchToWalkera)
+      self.r3=QtGui.QRadioButton("None")
+      self.src_type_group.addButton(self.r3, 3)
+      
+      layout.addWidget(self.r0, 0, 0, 1, 1) #row, col, rspan, cspan
+      layout.addWidget(self.r1, 0, 1, 1, 1) #row, col, rspan, cspan
+      layout.addWidget(self.r2, 0, 2, 1, 1) #row, col, rspan, cspan
+      layout.addWidget(self.r3, 0, 3, 1, 1) #row, col, rspan, cspan
+      
+      #add a horizontal separator line
+      hline_label = QtGui.QLabel()
+      hline_label.setFrameStyle(QtGui.QFrame.HLine | QtGui.QFrame.Plain)
+      hline_label.setLineWidth(1)
+      layout.addWidget(hline_label, 1, 0, 1, 4)
+      
+      self.correct_distortion_checkbox = QtGui.QCheckBox("Apply Lens Calibration")
+      self.correct_distortion_checkbox.setChecked(False)
+      layout.addWidget(self.correct_distortion_checkbox, 2, 0, 1, 4) #row, col, rspan, cspan
+
       self.setLayout(layout)
       
       self.get_images_t = QtCore.QTimer()
@@ -374,27 +400,39 @@ class VideoManagerWidget(QtGui.QWidget):
       self.managed_processor_widgets.append(new_vp_widget)
       return new_vp_widget
    
-   def createVideoSnapshotWidget(self):
-      new_vs_widget = VideoSnapshotWidget()
-      self.managed_snapshot_widgets.append(new_vs_widget)
-      return new_vs_widget
+   def createVideoCalibrationWidget(self):
+      self.calibration_widget = VideoCalibrationWidget()
+      self.managed_snapshot_widgets.append(self.calibration_widget)
+      return self.calibration_widget
    
    def getImage(self):
-      if self.src_type_group.checkedId() == 2: #no video
+      if self.src_type_group.checkedId() == 3: #no video
          return
       
-      if self.src_type_group.checkedId() == 0: #cam1
+      if self.src_type_group.checkedId() == 0: #cam0
          try:
-            tstamp, cv_img = self.camera_queue.get(False)
+            tstamp, cv_img = self.camera_queue0.get(False)
             self.get_images_FPS.update()
          except:
             return
-      elif self.src_type_group.checkedId() == 1: #walkera
+         
+      elif self.src_type_group.checkedId() == 1: #cam1
+         try:
+            tstamp, cv_img = self.camera_queue1.get(False)
+            self.get_images_FPS.update()
+         except:
+            return
+         
+      elif self.src_type_group.checkedId() == 2: #walkera
          try:
             tstamp, cv_img = self.walkera_queue.get(False)
             self.get_images_FPS.update()
          except:
             return
+         
+      #undistort here!
+      if self.correct_distortion_checkbox.isChecked():
+         cv_img = self.calibration_widget.undistort(cv_img)
       
       for w in self.managed_processor_widgets:
          try:
@@ -409,10 +447,14 @@ class VideoManagerWidget(QtGui.QWidget):
             w.snapshot_input_queue.get()
             w.snapshot_input_queue.put((tstamp, cv_img), False)
 
-   def switchToCamera(self):
+   def switchToCamera0(self):
       for w in self.managed_processor_widgets:
          w.reset()
-         
+   
+   def switchToCamera1(self):
+      for w in self.managed_processor_widgets:
+         w.reset()
+   
    def switchToWalkera(self):
       for w in self.managed_processor_widgets:
          w.reset()
@@ -424,9 +466,13 @@ class VideoManagerWidget(QtGui.QWidget):
       for w in self.managed_snapshot_widgets:
          w.shutdown()
       
-      self.camera_process.shutdown()
+      self.camera_process0.shutdown()
       time.sleep(0.1)
-      self.camera_process.terminate()
+      self.camera_process0.terminate()
+      
+      self.camera_process1.shutdown()
+      time.sleep(0.1)
+      self.camera_process1.terminate()
       
       self.walkera_process.shutdown()
       time.sleep(0.1)
@@ -650,7 +696,6 @@ class FlightControlWidget(ProcessorWidget):
       except Queue.Empty:
          pass
    
-
 class WalkeraGUI(QtGui.QWidget):
    def __init__(self):
       super(WalkeraGUI, self).__init__()
@@ -666,12 +711,18 @@ class WalkeraGUI(QtGui.QWidget):
       tab1_layout.addWidget(self.vm, 0, 0, 1, 3)
       self.objects_to_shutdown_at_quit.append(self.vm)
       
+      #add a horizontal separator line
+      hline_label = QtGui.QLabel()
+      hline_label.setFrameStyle(QtGui.QFrame.HLine | QtGui.QFrame.Plain)
+      hline_label.setLineWidth(2)
+      tab1_layout.addWidget(hline_label, 1, 0, 1, 3)
+      
       self.raw_widget = self.vm.createVideoProcessorWidget(IdentityProcess, process_label="Raw Video")
-      tab1_layout.addWidget(self.raw_widget, 1, 0)
+      tab1_layout.addWidget(self.raw_widget, 2, 0)
       self.lk_widget = self.vm.createVideoProcessorWidget(LKProcess, process_label="Optical Flow")
-      tab1_layout.addWidget(self.lk_widget, 1, 1)
+      tab1_layout.addWidget(self.lk_widget, 2, 1)
       self.fd_widget = self.vm.createVideoProcessorWidget(FaceDetectProcess, process_label="Face Detection")
-      tab1_layout.addWidget(self.fd_widget, 1, 2)
+      tab1_layout.addWidget(self.fd_widget, 2, 2)
       
       tab1.setLayout(tab1_layout)
       self.tabs.addTab(tab1, "CV")
@@ -686,12 +737,10 @@ class WalkeraGUI(QtGui.QWidget):
       tab3_layout = QtGui.QGridLayout()
       
       self.calibration_video_widget = self.vm.createVideoProcessorWidget(IdentityProcess, process_label="Calibration Video", FPS_plot = False)
-      tab3_layout.addWidget(self.calibration_video_widget, 0, 0, 1, 1) #row, col, rspan, cspan
+      tab3_layout.addWidget(self.calibration_video_widget, 0, 0, 1, 1, alignment=QtCore.Qt.AlignVCenter) #row, col, rspan, cspan
       
-      tab3_layout.addWidget(QtGui.QWidget(), 1, 0, 1, 1)
-      
-      self.calibration_snapshot_widget = self.vm.createVideoSnapshotWidget()
-      tab3_layout.addWidget(self.calibration_snapshot_widget, 0, 1, 2, 1)
+      self.calibration_snapshot_widget = self.vm.createVideoCalibrationWidget()
+      tab3_layout.addWidget(self.calibration_snapshot_widget, 0, 1, 1, 1)
       
       tab3.setLayout(tab3_layout)
       self.tabs.addTab(tab3, "Calibration")
